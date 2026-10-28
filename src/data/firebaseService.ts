@@ -1,5 +1,13 @@
 
-import { signInAnonymously } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile,
+  type User,
+  type Unsubscribe,
+} from "firebase/auth";
 import {
   doc,
   getDoc,
@@ -18,7 +26,19 @@ import type { GuruMateData } from "./storage";
 const DATA_COLLECTION = "gurumateData";
 const DOCUMENT_ID = "main";
 
-let authenticationPromise: Promise<string | null> | null = null;
+function requireFirebase() {
+  if (!firebaseEnabled || !firebaseAuth || !firestore) {
+    throw new Error(
+      "Firebase belum dikonfigurasi. Periksa pengaturan VITE_FIREBASE di file .env.",
+    );
+  }
+
+  return { auth: firebaseAuth, database: firestore };
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
 
 function isValidData(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -29,29 +49,16 @@ function toArray<T>(value: unknown): T[] {
 }
 
 function sanitizeRemoteData(raw: unknown): GuruMateData | null {
-  if (!isValidData(raw)) {
-    return null;
-  }
+  if (!isValidData(raw)) return null;
 
   return {
-    schedules: toArray<GuruMateData["schedules"][number]>(
-      raw.schedules,
-    ),
-    reminders: toArray<GuruMateData["reminders"][number]>(
-      raw.reminders,
-    ),
-    exams: toArray<GuruMateData["exams"][number]>(
-      raw.exams,
-    ),
-    students: toArray<GuruMateData["students"][number]>(
-      raw.students,
-    ),
-    grades: toArray<GuruMateData["grades"][number]>(
-      raw.grades,
-    ),
-    activities: toArray<GuruMateData["activities"][number]>(
-      raw.activities,
-    ),
+    schedules: toArray<GuruMateData["schedules"][number]>(raw.schedules),
+    reminders: toArray<GuruMateData["reminders"][number]>(raw.reminders),
+    exams: toArray<GuruMateData["exams"][number]>(raw.exams),
+    students: toArray<GuruMateData["students"][number]>(raw.students),
+    grades: toArray<GuruMateData["grades"][number]>(raw.grades),
+    attendance: toArray<GuruMateData["attendance"][number]>(raw.attendance),
+    activities: toArray<GuruMateData["activities"][number]>(raw.activities),
   };
 }
 
@@ -63,41 +70,80 @@ export function isCloudAvailable(): boolean {
   );
 }
 
-async function getUserId(): Promise<string | null> {
-  if (!isCloudAvailable() || !firebaseAuth) {
-    return null;
+export function observeAuthState(
+  callback: (user: User | null) => void,
+): Unsubscribe {
+  const { auth } = requireFirebase();
+  return onAuthStateChanged(auth, callback);
+}
+
+export function getCurrentTeacher(): User | null {
+  return firebaseAuth?.currentUser ?? null;
+}
+
+export async function registerTeacher(
+  name: string,
+  email: string,
+  password: string,
+): Promise<User> {
+  const { auth } = requireFirebase();
+  const cleanName = name.trim();
+  const cleanEmail = normalizeEmail(email);
+
+  if (cleanName.length < 2) {
+    throw new Error("Nama lengkap minimal 2 karakter.");
   }
 
-  if (firebaseAuth.currentUser) {
-    return firebaseAuth.currentUser.uid;
+  if (!cleanEmail || !cleanEmail.includes("@")) {
+    throw new Error("Masukkan alamat email yang valid.");
   }
 
-  if (!authenticationPromise) {
-    authenticationPromise = signInAnonymously(firebaseAuth)
-      .then((credential) => credential.user.uid)
-      .catch((error: unknown) => {
-        console.warn(
-          "GuruMate gagal melakukan autentikasi Firebase:",
-          error,
-        );
-
-        return null;
-      })
-      .finally(() => {
-        authenticationPromise = null;
-      });
+  if (password.length < 6) {
+    throw new Error("Kata sandi minimal 6 karakter.");
   }
 
-  return authenticationPromise;
+  const credential = await createUserWithEmailAndPassword(
+    auth,
+    cleanEmail,
+    password,
+  );
+
+  await updateProfile(credential.user, {
+    displayName: cleanName,
+  });
+
+  return credential.user;
+}
+
+export async function loginTeacher(
+  email: string,
+  password: string,
+): Promise<User> {
+  const { auth } = requireFirebase();
+
+  if (!normalizeEmail(email) || !password) {
+    throw new Error("Email dan kata sandi wajib diisi.");
+  }
+
+  const credential = await signInWithEmailAndPassword(
+    auth,
+    normalizeEmail(email),
+    password,
+  );
+
+  return credential.user;
+}
+
+export async function logoutTeacher(): Promise<void> {
+  const { auth } = requireFirebase();
+  await signOut(auth);
 }
 
 function getDataReference(uid: string) {
-  if (!firestore) {
-    return null;
-  }
+  const { database } = requireFirebase();
 
   return doc(
-    firestore,
+    database,
     "users",
     uid,
     DATA_COLLECTION,
@@ -106,20 +152,14 @@ function getDataReference(uid: string) {
 }
 
 export async function loadCloudData(): Promise<GuruMateData | null> {
+  const user = getCurrentTeacher();
+
+  if (!user || !isCloudAvailable()) {
+    return null;
+  }
+
   try {
-    const uid = await getUserId();
-
-    if (!uid) {
-      return null;
-    }
-
-    const reference = getDataReference(uid);
-
-    if (!reference) {
-      return null;
-    }
-
-    const snapshot = await getDoc(reference);
+    const snapshot = await getDoc(getDataReference(user.uid));
 
     if (!snapshot.exists()) {
       return null;
@@ -127,40 +167,33 @@ export async function loadCloudData(): Promise<GuruMateData | null> {
 
     return sanitizeRemoteData(snapshot.data());
   } catch (error: unknown) {
-    console.warn(
-      "GuruMate gagal mengambil data dari Firebase:",
-      error,
-    );
-
-    return null;
+    console.warn("GuruMate: gagal memuat data cloud.", error);
+    throw error;
   }
 }
 
 export async function saveCloudData(
   data: GuruMateData,
 ): Promise<boolean> {
+  const user = getCurrentTeacher();
+
+  if (!user || !isCloudAvailable()) {
+    return false;
+  }
+
   try {
-    const uid = await getUserId();
-
-    if (!uid) {
-      return false;
-    }
-
-    const reference = getDataReference(uid);
-
-    if (!reference) {
-      return false;
-    }
-
     await setDoc(
-      reference,
+      getDataReference(user.uid),
       {
         schedules: data.schedules,
         reminders: data.reminders,
         exams: data.exams,
         students: data.students,
         grades: data.grades,
+        attendance: data.attendance,
         activities: data.activities,
+        ownerUid: user.uid,
+        ownerEmail: user.email ?? "",
         updatedAt: serverTimestamp(),
       },
       { merge: true },
@@ -168,11 +201,7 @@ export async function saveCloudData(
 
     return true;
   } catch (error: unknown) {
-    console.warn(
-      "GuruMate gagal menyimpan data ke Firebase:",
-      error,
-    );
-
+    console.warn("GuruMate: gagal menyimpan data cloud.", error);
     return false;
   }
 }
@@ -181,6 +210,12 @@ export async function syncCloudData(
   localData: GuruMateData,
   onRemoteData: (data: GuruMateData) => void,
 ): Promise<boolean> {
+  const user = getCurrentTeacher();
+
+  if (!user || !isCloudAvailable()) {
+    return false;
+  }
+
   try {
     const remoteData = await loadCloudData();
 
@@ -191,11 +226,7 @@ export async function syncCloudData(
 
     return await saveCloudData(localData);
   } catch (error: unknown) {
-    console.warn(
-      "GuruMate gagal menyinkronkan data:",
-      error,
-    );
-
+    console.warn("GuruMate: sinkronisasi cloud gagal.", error);
     return false;
   }
 }

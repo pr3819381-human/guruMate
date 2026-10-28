@@ -1,8 +1,19 @@
-
 import { useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
+import type { User } from "firebase/auth";
 import "./App.css";
-
+import "./AuthScreen.css";
+import AdminPortal from "./AdminPortal";
+import AuthScreen from "./AuthScreen";
+import {
+  getCurrentTeacher,
+  isCloudAvailable,
+  observeAuthState,
+  loadCloudData,
+  saveCloudData,
+  logoutTeacher,
+} from "./data/firebaseService";
+import { recordGuruMateActivity } from "./data/adminService";
 import {
   getGuruMateData,
   saveGuruMateData,
@@ -10,28 +21,31 @@ import {
   addSchedule,
   addReminder,
   addExam,
+  addStudent,
+  addGrade,
+  upsertAttendance,
   toggleReminder,
   type GuruMateData,
   type Schedule,
   type Reminder,
+  type AttendanceStatus,
 } from "./data/storage";
 
-import { loadCloudData, saveCloudData } from "./data/firebaseService";
-
 const menus = [
-  { name: "Dashboard", icon: "⌂" },
-  { name: "Kalender", icon: "▦" },
-  { name: "Jadwal Mengajar", icon: "◷" },
-  { name: "Agenda & Reminder", icon: "✓" },
-  { name: "Ujian", icon: "▤" },
-  { name: "Akademik", icon: "◎" },
-  { name: "Mengajar", icon: "▣" },
-  { name: "Laporan", icon: "▥" },
+  { name: "Dashboard", icon: "⌂", description: "Ringkasan aktivitas mengajar" },
+  { name: "Kalender", icon: "▦", description: "Kalender kegiatan sekolah" },
+  { name: "Jadwal Mengajar", icon: "◷", description: "Atur jadwal kelas" },
+  { name: "Agenda & Reminder", icon: "✓", description: "Pengingat kegiatan penting" },
+  { name: "Ujian", icon: "▤", description: "Jadwal ujian dan evaluasi" },
+  { name: "Akademik", icon: "◎", description: "Data siswa dan nilai" },
+  { name: "Absensi", icon: "◉", description: "Kehadiran siswa" },
+  { name: "Mengajar", icon: "▣", description: "Ringkasan kegiatan mengajar" },
+  { name: "Laporan", icon: "▥", description: "Ringkasan dan ekspor data" },
 ];
 
 const todayISO = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };
 
 const dateLabel = (value: string) =>
@@ -44,16 +58,46 @@ const dateLabel = (value: string) =>
     : "Belum ditentukan";
 
 const inputClass =
-  "w-full rounded-xl border border-white/10 bg-[#0b101b] px-3 py-3 text-sm text-white outline-none focus:border-blue-400";
+  "gm-form-input w-full rounded-xl border px-4 py-3 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10";
+
 const buttonClass =
-  "rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-500";
-const cardClass =
-  "rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5";
+  "gm-primary-button inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition hover:-translate-y-0.5 active:translate-y-0";
+
+const cardClass = "gm-panel-card rounded-2xl border p-5 sm:p-6";
 
 function App() {
   const [page, setPage] = useState("Dashboard");
+  const [authUser, setAuthUser] = useState<User | null>(() => getCurrentTeacher());
+  const [authReady, setAuthReady] = useState(false);
+  const [authError, setAuthError] = useState("");
+
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    try {
+      return localStorage.getItem("gurumateTheme") === "light" ? "light" : "dark";
+    } catch {
+      return "dark";
+    }
+  });
+
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showAdminPortal, setShowAdminPortal] = useState(false);
   const [data, setData] = useState<GuruMateData>(() => getGuruMateData());
   const [notice, setNotice] = useState("");
+
+  const [studentForm, setStudentForm] = useState({
+    name: "",
+    className: "",
+    nis: "",
+  });
+
+  const [gradeForm, setGradeForm] = useState({
+    studentId: "",
+    examId: "",
+    score: "",
+  });
+
+  const [attendanceDate, setAttendanceDate] = useState(todayISO());
+  const [attendanceClass, setAttendanceClass] = useState("");
 
   const [scheduleForm, setScheduleForm] = useState({
     date: todayISO(),
@@ -84,21 +128,54 @@ function App() {
   });
 
   const [calendarMonth, setCalendarMonth] = useState(() => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1);
+    const date = new Date();
+    return new Date(date.getFullYear(), date.getMonth(), 1);
   });
 
   useEffect(() => {
-    const unsubscribe = subscribeToGuruMateData(() => {
+    if (!isCloudAvailable()) {
+      setAuthReady(true);
+      setAuthError(
+        "Firebase belum dikonfigurasi. Periksa file .env dan aktifkan Email/Password di Firebase Authentication.",
+      );
+      return;
+    }
+
+    try {
+      return observeAuthState((user) => {
+        setAuthUser(user);
+        setAuthReady(true);
+        setAuthError("");
+      });
+    } catch (error) {
+      console.error("GuruMate authentication:", error);
+      setAuthReady(true);
+      setAuthError("GuruMate gagal menghubungkan autentikasi Firebase.");
+    }
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.gurumateTheme = theme;
+
+    try {
+      localStorage.setItem("gurumateTheme", theme);
+    } catch {
+      // Tema tetap aktif selama aplikasi terbuka.
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    return subscribeToGuruMateData(() => {
       setData(getGuruMateData());
     });
-    return unsubscribe;
   }, []);
 
   useEffect(() => {
     let cancelled = false;
 
     async function syncCloud() {
+      if (!authUser) return;
+
       try {
         const remote = await loadCloudData();
         if (cancelled) return;
@@ -116,10 +193,11 @@ function App() {
     }
 
     void syncCloud();
+
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authUser]);
 
   const today = todayISO();
 
@@ -145,7 +223,9 @@ function App() {
     () =>
       data.reminders
         .filter((item) => !item.completed)
-        .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)),
+        .sort((a, b) =>
+          `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`),
+        ),
     [data.reminders],
   );
 
@@ -153,7 +233,9 @@ function App() {
     () =>
       data.exams
         .filter((item) => item.status === "upcoming")
-        .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)),
+        .sort((a, b) =>
+          `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`),
+        ),
     [data.exams],
   );
 
@@ -161,13 +243,21 @@ function App() {
     saveGuruMateData(next);
     setData(next);
     setNotice(message);
+    void recordGuruMateActivity(message, "Data", message);
     window.setTimeout(() => setNotice(""), 3000);
   }
 
   function submitSchedule(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (scheduleForm.endTime <= scheduleForm.startTime) {
+      setNotice("Waktu selesai harus setelah waktu mulai.");
+      return;
+    }
+
     const next = addSchedule(data, scheduleForm);
     commit(next, "Jadwal mengajar berhasil ditambahkan.");
+
     setScheduleForm({
       date: todayISO(),
       startTime: "07:00",
@@ -182,8 +272,10 @@ function App() {
 
   function submitReminder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
     const next = addReminder(data, reminderForm);
     commit(next, "Pengingat berhasil ditambahkan.");
+
     setReminderForm({
       title: "",
       detail: "",
@@ -195,8 +287,10 @@ function App() {
 
   function submitExam(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
     const next = addExam(data, examForm);
     commit(next, "Jadwal ujian berhasil ditambahkan.");
+
     setExamForm({
       title: "",
       subject: "",
@@ -207,6 +301,68 @@ function App() {
     });
   }
 
+  function submitStudent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!studentForm.name.trim() || !studentForm.className.trim()) {
+      setNotice("Nama siswa dan kelas wajib diisi.");
+      return;
+    }
+
+    const next = addStudent(data, {
+      name: studentForm.name.trim(),
+      className: studentForm.className.trim(),
+      nis: studentForm.nis.trim(),
+      average: 0,
+    });
+
+    commit(next, "Data siswa berhasil ditambahkan.");
+    setStudentForm({ name: "", className: "", nis: "" });
+  }
+
+  function submitGrade(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const score = Number(gradeForm.score);
+
+    if (
+      !gradeForm.studentId ||
+      !gradeForm.examId ||
+      gradeForm.score === "" ||
+      !Number.isFinite(score) ||
+      score < 0 ||
+      score > 100
+    ) {
+      setNotice("Pilih siswa, ujian, dan masukkan nilai 0–100.");
+      return;
+    }
+
+    const next = addGrade(data, {
+      studentId: gradeForm.studentId,
+      examId: gradeForm.examId,
+      score,
+    });
+
+    commit(next, "Nilai siswa berhasil disimpan.");
+    setGradeForm({ studentId: "", examId: "", score: "" });
+  }
+
+  function saveAttendance(studentId: string, status: AttendanceStatus) {
+    const student = data.students.find((item) => item.id === studentId);
+    if (!student) return;
+
+    const next = upsertAttendance(data, {
+      studentId,
+      className: student.className,
+      date: attendanceDate,
+      status,
+      note: "",
+      checkedAt: new Date().toISOString(),
+    });
+
+    commit(next, `Absensi ${student.name} disimpan.`);
+  }
+
   function finishReminder(id: string) {
     commit(toggleReminder(data, id), "Status pengingat diperbarui.");
   }
@@ -214,40 +370,47 @@ function App() {
   function downloadReport() {
     const rows = [
       ["Jenis", "Nama", "Tanggal", "Waktu", "Keterangan"],
-      ...data.schedules.map((s) => [
+      ...data.schedules.map((item) => [
         "Jadwal",
-        `${s.subject} - ${s.className}`,
-        s.date,
-        s.startTime,
-        `${s.endTime}; ${s.room}; ${s.topic}`,
+        `${item.subject} - ${item.className}`,
+        item.date,
+        item.startTime,
+        `${item.endTime}; ${item.room}; ${item.topic}`,
       ]),
-      ...data.reminders.map((r) => [
+      ...data.reminders.map((item) => [
         "Pengingat",
-        r.title,
-        r.date,
-        r.time,
-        `${r.detail}; ${r.completed ? "Selesai" : "Aktif"}`,
+        item.title,
+        item.date,
+        item.time,
+        `${item.detail}; ${item.completed ? "Selesai" : "Aktif"}`,
       ]),
-      ...data.exams.map((e) => [
+      ...data.exams.map((item) => [
         "Ujian",
-        `${e.title} - ${e.subject}`,
-        e.date,
-        e.time,
-        `${e.className}; ${e.room}; ${e.status}`,
+        `${item.title} - ${item.subject}`,
+        item.date,
+        item.time,
+        `${item.className}; ${item.room}; ${item.status}`,
       ]),
-      ...data.students.map((s) => [
+      ...data.students.map((item) => [
         "Siswa",
-        s.name,
+        item.name,
         "",
         "",
-        `${s.className}; NIS ${s.nis}; rata-rata ${s.average}`,
+        `${item.className}; NIS ${item.nis}; rata-rata ${item.average}`,
       ]),
-      ...data.grades.map((g) => [
+      ...data.grades.map((item) => [
         "Nilai",
-        g.studentId,
+        data.students.find((student) => student.id === item.studentId)?.name ?? item.studentId,
         "",
         "",
-        `Ujian ${g.examId}; nilai ${g.score}`,
+        `Ujian ${data.exams.find((exam) => exam.id === item.examId)?.title ?? item.examId}; nilai ${item.score}`,
+      ]),
+      ...data.attendance.map((item) => [
+        "Absensi",
+        data.students.find((student) => student.id === item.studentId)?.name ?? item.studentId,
+        item.date,
+        "",
+        `${item.className}; ${item.status}`,
       ]),
     ];
 
@@ -258,16 +421,20 @@ function App() {
       .join("\r\n");
 
     const url = URL.createObjectURL(
-      new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" }),
+      new Blob(["\uFEFF" + csv], {
+        type: "text/csv;charset=utf-8;",
+      }),
     );
+
     const link = document.createElement("a");
     link.href = url;
     link.download = `GuruMate-Laporan-${today}.csv`;
+    document.body.appendChild(link);
     link.click();
+    link.remove();
     URL.revokeObjectURL(url);
   }
 
-  const title = page === "Dashboard" ? "Dashboard" : page;
   const monthName = calendarMonth.toLocaleDateString("id-ID", {
     month: "long",
     year: "numeric",
@@ -276,285 +443,1174 @@ function App() {
   const calendarDays = useMemo(() => {
     const year = calendarMonth.getFullYear();
     const month = calendarMonth.getMonth();
-    const firstDay = new Date(year, month, 1).getDay();
+    const offset = (new Date(year, month, 1).getDay() + 6) % 7;
     const count = new Date(year, month + 1, 0).getDate();
-    const offset = (firstDay + 6) % 7;
 
     return [
       ...Array.from({ length: offset }, () => null),
-      ...Array.from({ length: count }, (_, i) => {
-        const day = i + 1;
+      ...Array.from({ length: count }, (_, index) => {
+        const day = index + 1;
         return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
       }),
     ];
   }, [calendarMonth]);
 
+  if (showAdminPortal) {
+    return <AdminPortal onClose={() => setShowAdminPortal(false)} />;
+  }
+
+  if (!authReady) {
+    return (
+      <div className="gm-auth-loading">
+        <div className="gm-auth-spinner" />
+        <p>Menyiapkan GuruMate...</p>
+      </div>
+    );
+  }
+
+  if (!authUser) {
+    return (
+      <>
+        {authError && (
+          <div className="gm-auth-config-error" role="alert">
+            {authError}
+          </div>
+        )}
+        <AuthScreen onLogin={() => setAuthUser(getCurrentTeacher())} />
+      </>
+    );
+  }
+
+  const todayAgenda = [
+    ...schedulesToday.map((item) => ({
+      id: item.id,
+      time: item.startTime,
+      end: item.endTime,
+      title: `${item.subject} — ${item.className}`,
+      detail: [item.topic, item.room ? `Ruang ${item.room}` : ""]
+        .filter(Boolean)
+        .join(" · "),
+      type: "Jadwal mengajar",
+    })),
+    ...reminders
+      .filter((item) => item.date === today)
+      .map((item) => ({
+        id: item.id,
+        time: item.time,
+        end: "",
+        title: item.title,
+        detail: item.detail,
+        type: "Pengingat",
+      })),
+    ...exams
+      .filter((item) => item.date === today)
+      .map((item) => ({
+        id: item.id,
+        time: item.time,
+        end: "",
+        title: item.title,
+        detail: `${item.subject} · ${item.className}${item.room ? ` · Ruang ${item.room}` : ""}`,
+        type: "Ujian",
+      })),
+  ].sort((a, b) => a.time.localeCompare(b.time));
+
+  const todayDate = new Date();
+  const greeting =
+    todayDate.getHours() < 11
+      ? "Selamat pagi"
+      : todayDate.getHours() < 15
+        ? "Selamat siang"
+        : todayDate.getHours() < 18
+          ? "Selamat sore"
+          : "Selamat malam";
+
+  const teacherName =
+    authUser.displayName?.trim() ||
+    authUser.email?.split("@")[0] ||
+    "Bapak/Ibu Guru";
+
+  const upcomingItemsCount =
+    upcomingSchedules.length + reminders.length + exams.length;
+
   return (
-    <div className="min-h-screen bg-[#080b12] text-slate-200">
+    <div
+      className={`gm-app-root ${theme === "light" ? "gm-light" : "gm-dark"} min-h-screen`}
+    >
       <div className="flex min-h-screen">
-        <aside className="hidden w-64 shrink-0 flex-col border-r border-white/[0.07] bg-[#0b0f18] lg:flex">
-          <div className="flex h-20 items-center gap-3 border-b border-white/[0.07] px-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-xl font-bold text-white">
+        <aside className="gm-sidebar hidden w-64 shrink-0 flex-col lg:flex">
+          <div className="gm-brand flex h-20 items-center gap-3 px-6">
+            <div className="gm-brand-icon flex h-11 w-11 items-center justify-center rounded-2xl text-xl font-bold text-white">
               G
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white">GuruMate</h1>
-              <p className="text-xs text-slate-500">Teacher Assistant</p>
+              <h1 className="text-lg font-extrabold">GuruMate</h1>
+              <p className="gm-muted text-xs">Personal teaching workspace</p>
             </div>
           </div>
 
           <nav className="flex-1 space-y-1 p-3">
-            <p className="px-3 pb-3 pt-4 text-[10px] font-bold uppercase tracking-widest text-slate-600">
-              Menu utama
+            <p className="gm-section-label px-3 pb-3 pt-4">
+              WORKSPACE
             </p>
+
             {menus.map((item) => (
               <button
                 key={item.name}
-                onClick={() => setPage(item.name)}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm transition ${
-                  page === item.name
-                    ? "bg-blue-500/10 font-semibold text-blue-300"
-                    : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
+                type="button"
+                onClick={() => {
+                  setPage(item.name);
+                  void recordGuruMateActivity(
+                    "Membuka halaman",
+                    "Navigasi",
+                    `Pengguna membuka halaman ${item.name}.`,
+                  );
+                }}
+                className={`gm-nav-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm transition ${
+                  page === item.name ? "active" : ""
                 }`}
               >
-                <span className="w-6 text-center">{item.icon}</span>
-                {item.name}
+                <span className="gm-nav-icon flex h-9 w-9 items-center justify-center rounded-xl text-base">
+                  {item.icon}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold">{item.name}</span>
+                  <span className="gm-nav-description mt-0.5 block truncate text-[10px]">
+                    {item.description}
+                  </span>
+                </span>
+                {page === item.name && <span className="gm-nav-indicator" />}
               </button>
             ))}
           </nav>
 
-          <div className="m-4 rounded-2xl border border-blue-400/10 bg-blue-500/[0.06] p-4">
-            <p className="text-sm font-semibold text-white">GuruMate Assistant</p>
-            <p className="mt-2 text-xs leading-relaxed text-slate-500">
-              Kelola jadwal, agenda, ujian, dan administrasi mengajar dalam satu tempat.
+          <div className="px-4 pb-3">
+            <button
+              type="button"
+              onClick={() => setShowAdminPortal(true)}
+              className="gm-admin-button flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left text-sm font-semibold transition"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl">
+                ⚙
+              </span>
+              <span className="flex-1">Panel Admin</span>
+              <span>→</span>
+            </button>
+          </div>
+
+          <div className="gm-sidebar-promo m-4 rounded-2xl p-4">
+            <div className="flex items-center gap-2">
+              <span className="gm-promo-sparkle">✦</span>
+              <p className="text-sm font-bold">GuruMate Assistant</p>
+            </div>
+            <p className="gm-muted mt-2 text-xs leading-relaxed">
+              Semua kebutuhan mengajar, agenda, dan administrasi dalam satu
+              workspace.
             </p>
+            <div className="gm-promo-progress mt-4">
+              <span />
+            </div>
+            <p className="gm-muted mt-2 text-[10px]">
+              Workspace pribadi untuk guru
+            </p>
+          </div>
+
+          <div className="gm-sidebar-profile mx-4 mb-4 flex items-center gap-3 rounded-2xl p-3">
+            <div className="gm-avatar flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-bold">
+              {teacherName.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold">{teacherName}</p>
+              <p className="gm-muted truncate text-[10px]">
+                {authUser.email}
+              </p>
+            </div>
+            <span className="gm-online-dot" title="Akun aktif" />
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 pb-24 lg:pb-0">
-          <header className="sticky top-0 z-20 flex h-20 items-center justify-between border-b border-white/[0.07] bg-[#080b12]/90 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-blue-300">
-                {title}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                {new Date().toLocaleDateString("id-ID", {
-                  weekday: "long",
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
-              </p>
-            </div>
+        {showMobileMenu && (
+          <div className="fixed inset-0 z-[100] lg:hidden">
             <button
-              onClick={() => setPage("Agenda & Reminder")}
-              className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-lg hover:bg-white/5"
-              aria-label="Buka pengingat"
-            >
-              ♢
-              {reminders.length > 0 && (
-                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-blue-400" />
-              )}
-            </button>
+              type="button"
+              aria-label="Tutup menu"
+              onClick={() => setShowMobileMenu(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+
+            <aside className="gm-sidebar absolute inset-y-0 left-0 flex w-[min(20rem,88vw)] flex-col shadow-2xl">
+              <div className="gm-brand flex h-20 items-center justify-between px-5">
+                <div className="flex items-center gap-3">
+                  <div className="gm-brand-icon flex h-11 w-11 items-center justify-center rounded-2xl text-xl font-bold text-white">
+                    G
+                  </div>
+                  <div>
+                    <h1 className="text-lg font-extrabold">GuruMate</h1>
+                    <p className="gm-muted text-xs">Teacher workspace</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMobileMenu(false)}
+                  className="gm-icon-button flex h-10 w-10 items-center justify-center rounded-xl text-xl"
+                  aria-label="Tutup navigasi"
+                >
+                  ×
+                </button>
+              </div>
+
+              <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+                <p className="gm-section-label px-3 pb-3 pt-4">
+                  WORKSPACE
+                </p>
+                {menus.map((item) => (
+                  <button
+                    key={item.name}
+                    type="button"
+                    onClick={() => {
+                      setPage(item.name);
+                      setShowMobileMenu(false);
+                    }}
+                    className={`gm-nav-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm ${
+                      page === item.name ? "active" : ""
+                    }`}
+                  >
+                    <span className="gm-nav-icon flex h-9 w-9 items-center justify-center rounded-xl">
+                      {item.icon}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold">{item.name}</span>
+                      <span className="gm-nav-description mt-0.5 block truncate text-[10px]">
+                        {item.description}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMobileMenu(false);
+                    setShowAdminPortal(true);
+                  }}
+                  className="gm-admin-button mt-3 flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm font-semibold"
+                >
+                  ⚙ Panel Admin <span className="ml-auto">→</span>
+                </button>
+              </nav>
+
+              <div className="gm-sidebar-profile m-4 flex items-center gap-3 rounded-2xl p-3">
+                <div className="gm-avatar flex h-10 w-10 items-center justify-center rounded-full font-bold">
+                  {teacherName.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{teacherName}</p>
+                  <p className="gm-muted truncate text-xs">{authUser.email}</p>
+                </div>
+              </div>
+            </aside>
+          </div>
+        )}
+
+        <main className="gm-main min-w-0 flex-1">
+          <header className="gm-topbar sticky top-0 z-20 flex min-h-[76px] items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+            <div className="flex min-w-0 items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowMobileMenu(true)}
+                aria-label="Buka navigasi"
+                className="gm-icon-button flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg lg:hidden"
+              >
+                ☰
+              </button>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="gm-header-mark" />
+                  <p className="gm-header-eyebrow truncate">{page}</p>
+                </div>
+                <p className="gm-muted mt-1 truncate text-xs">
+                  {new Date().toLocaleDateString("id-ID", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage("Agenda & Reminder")}
+                className="gm-icon-button gm-notification-button relative flex h-10 w-10 items-center justify-center rounded-xl text-lg"
+                aria-label="Buka pengingat"
+                title="Pengingat"
+              >
+                ♢
+                {reminders.length > 0 && (
+                  <span className="gm-notification-dot absolute right-2 top-2 h-2 w-2 rounded-full" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setTheme((current) =>
+                    current === "dark" ? "light" : "dark",
+                  )
+                }
+                className="gm-icon-button flex h-10 items-center gap-2 rounded-xl px-3 text-xs font-semibold"
+                aria-label={
+                  theme === "dark"
+                    ? "Aktifkan mode terang"
+                    : "Aktifkan mode gelap"
+                }
+              >
+                <span>{theme === "dark" ? "☀" : "☾"}</span>
+                <span className="hidden sm:inline">
+                  {theme === "dark" ? "Mode terang" : "Mode gelap"}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await logoutTeacher();
+                    setAuthUser(null);
+                    setShowAdminPortal(false);
+                    setPage("Dashboard");
+                  } catch (error) {
+                    console.error("Logout GuruMate:", error);
+                    setNotice("Logout gagal. Silakan coba lagi.");
+                  }
+                }}
+                className="gm-logout-button flex h-10 items-center gap-2 rounded-xl px-3 text-xs font-semibold"
+                title="Keluar dari akun"
+              >
+                ↪ <span className="hidden sm:inline">Keluar</span>
+              </button>
+            </div>
           </header>
 
-          <div className="mx-auto max-w-[1500px] space-y-6 p-4 sm:p-6 lg:p-8">
+          <div className="gm-page-content mx-auto max-w-[1500px] space-y-6 p-4 sm:p-6 lg:p-8">
             {notice && (
-              <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300">
+              <div className="gm-toast rounded-xl border px-4 py-3 text-sm">
+                <span className="mr-2">✓</span>
                 {notice}
               </div>
             )}
 
             {page === "Dashboard" && (
               <>
-                <section className="relative overflow-hidden rounded-3xl border border-blue-400/10 bg-gradient-to-br from-[#142341] via-[#101729] to-[#11121d] p-6 sm:p-8">
-                  <div className="pointer-events-none absolute -right-12 -top-16 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" />
-                  <div className="relative">
-                    <span className="rounded-full border border-blue-300/20 bg-blue-400/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-blue-200">
-                      Personal Teaching Workspace
-                    </span>
-                    <h2 className="mt-6 max-w-xl text-3xl font-bold leading-tight text-white sm:text-4xl">
-                      Semua aktivitas mengajar, lebih teratur.
-                    </h2>
-                    <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-400">
-                      Pantau jadwal kelas, persiapkan ujian, dan jangan lewatkan agenda penting hari ini.
-                    </p>
-                    <button
-                      onClick={() => setPage("Jadwal Mengajar")}
-                      className={`${buttonClass} mt-6`}
-                    >
-                      Kelola jadwal →
-                    </button>
+                <section className="gm-dashboard-hero relative overflow-hidden rounded-[28px] border p-6 sm:p-8 lg:p-10">
+                  <div className="gm-hero-orb gm-hero-orb-one pointer-events-none absolute -right-10 -top-20 h-64 w-64 rounded-full blur-3xl" />
+                  <div className="gm-hero-orb gm-hero-orb-two pointer-events-none absolute -bottom-28 right-1/3 h-64 w-64 rounded-full blur-3xl" />
+                  <div className="gm-hero-grid pointer-events-none absolute inset-0" />
+
+                  <div className="relative z-10 grid items-center gap-8 lg:grid-cols-[1.25fr_0.75fr]">
+                    <div>
+                      <div className="gm-hero-kicker inline-flex items-center gap-2 rounded-full border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em]">
+                        <span className="gm-status-pulse" />
+                        Personal teaching workspace
+                      </div>
+
+                      <p className="gm-hero-greeting mt-6 text-sm font-semibold">
+                        {greeting}, {teacherName} 👋
+                      </p>
+
+                      <h2 className="gm-hero-title mt-3 max-w-2xl text-3xl font-extrabold leading-[1.15] tracking-tight sm:text-4xl lg:text-[2.8rem]">
+                        Mengajar lebih teratur,
+                        <span className="gm-hero-gradient block">
+                          hari lebih terarah.
+                        </span>
+                      </h2>
+
+                      <p className="gm-hero-description mt-4 max-w-xl text-sm leading-7 sm:text-base">
+                        Semua jadwal, pengingat, ujian, dan aktivitas kelas
+                        dalam satu ruang kerja yang praktis. Yuk, siapkan
+                        kegiatan mengajarmu hari ini.
+                      </p>
+
+                      <div className="mt-7 flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setPage("Jadwal Mengajar")}
+                          className="gm-hero-primary inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-sm font-bold transition hover:-translate-y-0.5"
+                        >
+                          <span>＋</span> Kelola jadwal <span>→</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPage("Agenda & Reminder")}
+                          className="gm-hero-secondary inline-flex items-center justify-center gap-2 rounded-xl border px-5 py-3.5 text-sm font-semibold transition"
+                        >
+                          <span>▤</span> Buka agenda
+                        </button>
+                      </div>
+
+                      <div className="gm-hero-footer mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 border-t pt-5 text-xs">
+                        <span className="inline-flex items-center gap-2">
+                          <span className="gm-mini-check">✓</span>
+                          Workspace pribadi
+                        </span>
+                        <span className="inline-flex items-center gap-2">
+                          <span className="gm-mini-check">✓</span>
+                          Agenda terorganisasi
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="gm-hero-side relative">
+                      <div className="gm-hero-side-glow pointer-events-none absolute inset-4 rounded-full blur-3xl" />
+                      <div className="gm-hero-summary relative rounded-3xl border p-5 sm:p-6">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="gm-card-eyebrow">RINGKASAN HARI INI</p>
+                            <h3 className="mt-2 text-lg font-bold">
+                              Agenda kamu
+                            </h3>
+                          </div>
+                          <div className="gm-summary-icon flex h-11 w-11 items-center justify-center rounded-2xl text-xl">
+                            ✦
+                          </div>
+                        </div>
+
+                        <div className="gm-summary-total mt-5 flex items-end justify-between gap-3 rounded-2xl p-4">
+                          <div>
+                            <p className="gm-muted text-xs">Total agenda hari ini</p>
+                            <p className="mt-1 text-3xl font-extrabold">
+                              {todayAgenda.length}
+                            </p>
+                          </div>
+                          <span className="gm-summary-today rounded-full px-3 py-1.5 text-[10px] font-bold">
+                            HARI INI
+                          </span>
+                        </div>
+
+                        <div className="mt-4 space-y-3">
+                          <MiniSummaryRow
+                            icon="◷"
+                            label="Jadwal mengajar"
+                            value={schedulesToday.length}
+                            accent="blue"
+                          />
+                          <MiniSummaryRow
+                            icon="✓"
+                            label="Pengingat aktif"
+                            value={reminders.filter((item) => item.date === today).length}
+                            accent="violet"
+                          />
+                          <MiniSummaryRow
+                            icon="▤"
+                            label="Ujian hari ini"
+                            value={exams.filter((item) => item.date === today).length}
+                            accent="amber"
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setPage("Kalender")}
+                          className="gm-summary-link mt-5 flex w-full items-center justify-between rounded-xl border px-4 py-3 text-xs font-semibold transition"
+                        >
+                          Lihat kalender kegiatan <span>→</span>
+                        </button>
+                      </div>
+
+                      <div className="gm-floating-chip relative ml-auto mt-3 flex w-fit items-center gap-3 rounded-2xl border px-4 py-3">
+                        <div className="gm-floating-chip-icon flex h-9 w-9 items-center justify-center rounded-xl">
+                          ✓
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold">Tetap terorganisasi</p>
+                          <p className="gm-muted mt-1 text-[10px]">
+                            Satu langkah setiap hari
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </section>
 
-                <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                <section className="gm-stats-grid grid grid-cols-2 gap-3 xl:grid-cols-4">
                   {[
-                    { label: "Jadwal hari ini", value: schedulesToday.length, icon: "◷" },
-                    { label: "Pengingat aktif", value: reminders.length, icon: "✓" },
-                    { label: "Ujian mendatang", value: exams.length, icon: "▤" },
+                    {
+                      label: "Jadwal hari ini",
+                      value: schedulesToday.length,
+                      icon: "◷",
+                      detail: "Kelas terjadwal",
+                      tone: "blue",
+                    },
+                    {
+                      label: "Pengingat aktif",
+                      value: reminders.length,
+                      icon: "✓",
+                      detail: "Belum diselesaikan",
+                      tone: "violet",
+                    },
+                    {
+                      label: "Ujian mendatang",
+                      value: exams.length,
+                      icon: "▤",
+                      detail: "Perlu dipersiapkan",
+                      tone: "amber",
+                    },
                     {
                       label: "Kelas terdaftar",
-                      value: new Set(data.schedules.map((s) => s.className)).size,
+                      value: new Set(data.schedules.map((item) => item.className)).size,
                       icon: "▦",
+                      detail: "Dari jadwal tersimpan",
+                      tone: "green",
                     },
                   ].map((stat) => (
-                    <div key={stat.label} className={cardClass}>
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10 text-blue-300">
-                        {stat.icon}
+                    <div
+                      key={stat.label}
+                      className={`gm-stat-card gm-stat-${stat.tone} rounded-2xl border p-4 sm:p-5`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="gm-stat-icon flex h-11 w-11 items-center justify-center rounded-2xl text-lg">
+                          {stat.icon}
+                        </div>
+                        <span className="gm-stat-decoration text-xl">✦</span>
                       </div>
-                      <p className="mt-4 text-2xl font-bold text-white">{stat.value}</p>
-                      <p className="mt-1 text-xs text-slate-500">{stat.label}</p>
+                      <p className="gm-stat-value mt-5 text-3xl font-extrabold">
+                        {stat.value}
+                      </p>
+                      <p className="gm-stat-label mt-1 text-sm font-semibold">
+                        {stat.label}
+                      </p>
+                      <p className="gm-muted mt-1 text-[10px] sm:text-xs">
+                        {stat.detail}
+                      </p>
+                      <div className="gm-stat-line mt-4">
+                        <span />
+                      </div>
                     </div>
                   ))}
                 </section>
 
-                <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+                <section className={cardClass}>
+                  <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="gm-card-eyebrow">AGENDA MENGAJAR</p>
+                      <h3 className="gm-heading mt-2 text-xl font-bold">
+                        Jadwal kelas berikutnya
+                      </h3>
+                      <p className="gm-muted mt-1 text-sm">
+                        Jadwal terdekat yang perlu kamu siapkan.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPage("Jadwal Mengajar")}
+                      className="gm-secondary-button rounded-xl border px-4 py-2.5 text-xs font-semibold transition"
+                    >
+                      Kelola jadwal →
+                    </button>
+                  </div>
+
+                  {upcomingSchedules.length ? (
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {upcomingSchedules.slice(0, 3).map((item, index) => (
+                        <div
+                          key={item.id}
+                          className="gm-upcoming-card rounded-2xl border p-4"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="gm-upcoming-number flex h-10 w-10 items-center justify-center rounded-xl text-sm font-extrabold">
+                              {String(index + 1).padStart(2, "0")}
+                            </div>
+                            <span className="gm-upcoming-date rounded-full px-3 py-1.5 text-[10px] font-semibold">
+                              {dateLabel(item.date)}
+                            </span>
+                          </div>
+                          <h4 className="gm-heading mt-4 font-bold">
+                            {item.subject}
+                          </h4>
+                          <p className="gm-muted mt-1 text-sm">
+                            Kelas {item.className}
+                          </p>
+                          <div className="gm-upcoming-meta mt-4 flex flex-wrap gap-2 text-xs">
+                            <span className="rounded-lg px-2.5 py-2">
+                              ◷ {item.startTime}–{item.endTime}
+                            </span>
+                            {item.room && (
+                              <span className="rounded-lg px-2.5 py-2">
+                                ▣ {item.room}
+                              </span>
+                            )}
+                          </div>
+                          {item.topic && (
+                            <p className="gm-muted mt-3 text-xs leading-relaxed">
+                              <span className="font-semibold">Materi:</span>{" "}
+                              {item.topic}
+                            </p>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAttendanceClass(item.className);
+                              setAttendanceDate(item.date);
+                              setPage("Absensi");
+                            }}
+                            className="gm-attendance-link mt-4 w-full rounded-xl border px-3 py-2.5 text-xs font-semibold transition"
+                          >
+                            Buka absensi kelas →
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <Empty
+                      title="Belum ada jadwal mengajar"
+                      detail="Tambahkan jadwal terlebih dahulu agar agenda kelas tampil di dashboard."
+                    />
+                  )}
+                </section>
+
+                <section className={cardClass}>
+                  <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="gm-card-eyebrow">AGENDA HARIAN</p>
+                      <h3 className="gm-heading mt-2 text-xl font-bold">
+                        Yang perlu dilakukan hari ini
+                      </h3>
+                      <p className="gm-muted mt-1 text-sm">
+                        Semua jadwal, pengingat, dan ujian dalam satu daftar.
+                      </p>
+                    </div>
+                    <span className="gm-agenda-count rounded-full border px-3 py-2 text-xs font-bold">
+                      {todayAgenda.length} agenda
+                    </span>
+                  </div>
+
+                  {todayAgenda.length ? (
+                    <div className="space-y-3">
+                      {todayAgenda.map((item) => (
+                        <div
+                          key={`${item.type}-${item.id}`}
+                          className="gm-agenda-row flex items-start gap-3 rounded-2xl border p-3 sm:p-4"
+                        >
+                          <div className="gm-agenda-time min-w-[76px] rounded-xl px-2 py-2.5 text-center">
+                            <p className="text-sm font-extrabold">{item.time}</p>
+                            {item.end && (
+                              <p className="gm-muted mt-1 text-[10px]">
+                                s.d. {item.end}
+                              </p>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="gm-heading break-words text-sm font-bold">
+                              {item.title}
+                            </p>
+                            {item.detail && (
+                              <p className="gm-muted mt-1 break-words text-xs leading-relaxed">
+                                {item.detail}
+                              </p>
+                            )}
+                            <span className="gm-agenda-type mt-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold">
+                              {item.type}
+                            </span>
+                          </div>
+                          <span className="gm-agenda-check hidden h-8 w-8 items-center justify-center rounded-full sm:flex">
+                            ✓
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <Empty
+                      title="Hari ini belum ada agenda"
+                      detail="Tambahkan jadwal mengajar, pengingat, atau ujian. Semuanya akan muncul otomatis di sini."
+                    />
+                  )}
+                </section>
+
+                <div className="grid gap-6 xl:grid-cols-2">
                   <section className={cardClass}>
                     <div className="mb-5 flex items-center justify-between gap-3">
                       <div>
-                        <h3 className="font-semibold text-white">Jadwal hari ini</h3>
-                        <p className="mt-1 text-xs text-slate-500">Agenda kegiatan mengajar</p>
+                        <p className="gm-card-eyebrow">JADWAL</p>
+                        <h3 className="gm-heading mt-2 font-bold">
+                          Jadwal hari ini
+                        </h3>
+                        <p className="gm-muted mt-1 text-xs">
+                          Urut berdasarkan waktu mengajar
+                        </p>
                       </div>
-                      <button onClick={() => setPage("Jadwal Mengajar")} className="text-xs text-blue-300">
+                      <button
+                        type="button"
+                        onClick={() => setPage("Jadwal Mengajar")}
+                        className="gm-text-link text-xs font-semibold"
+                      >
                         Lihat semua →
                       </button>
                     </div>
                     {schedulesToday.length ? (
                       <div className="space-y-3">
-                        {schedulesToday.map((s) => <ScheduleCard key={s.id} item={s} />)}
+                        {schedulesToday.map((item) => (
+                          <ScheduleCard key={item.id} item={item} />
+                        ))}
                       </div>
                     ) : (
-                      <Empty title="Belum ada jadwal hari ini" detail="Tambahkan jadwal mengajar agar agenda tampil di sini." />
+                      <Empty
+                        title="Belum ada jadwal"
+                        detail="Tambahkan jadwal mengajar untuk hari ini."
+                      />
                     )}
                   </section>
 
                   <section className={cardClass}>
-                    <div className="mb-5 flex items-center justify-between">
+                    <div className="mb-5 flex items-center justify-between gap-3">
                       <div>
-                        <h3 className="font-semibold text-white">Pengingat aktif</h3>
-                        <p className="mt-1 text-xs text-slate-500">Agenda yang belum selesai</p>
+                        <p className="gm-card-eyebrow">PENGINGAT</p>
+                        <h3 className="gm-heading mt-2 font-bold">
+                          Pengingat aktif
+                        </h3>
+                        <p className="gm-muted mt-1 text-xs">
+                          Agenda yang belum selesai
+                        </p>
                       </div>
-                      <button onClick={() => setPage("Agenda & Reminder")} className="text-xs text-blue-300">
+                      <button
+                        type="button"
+                        onClick={() => setPage("Agenda & Reminder")}
+                        className="gm-text-link text-xs font-semibold"
+                      >
                         Kelola →
                       </button>
                     </div>
                     {reminders.slice(0, 5).length ? (
                       <div className="space-y-2">
-                        {reminders.slice(0, 5).map((r) => (
-                          <ReminderRow key={r.id} item={r} onToggle={() => finishReminder(r.id)} />
+                        {reminders.slice(0, 5).map((item) => (
+                          <ReminderRow
+                            key={item.id}
+                            item={item}
+                            onToggle={() => finishReminder(item.id)}
+                            showDate
+                          />
                         ))}
                       </div>
                     ) : (
-                      <Empty title="Semua agenda selesai" detail="Pengingat baru akan muncul di sini." />
+                      <Empty
+                        title="Tidak ada pengingat aktif"
+                        detail="Agenda yang kamu tambahkan akan muncul di sini."
+                      />
                     )}
                   </section>
                 </div>
 
-                <section className={cardClass}>
-                  <div className="mb-5 flex items-center justify-between">
-                    <h3 className="font-semibold text-white">Agenda berikutnya</h3>
-                    <button onClick={() => setPage("Kalender")} className="text-xs text-blue-300">Buka kalender →</button>
+                <section className="gm-bottom-banner flex flex-col gap-4 rounded-2xl border p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+                  <div className="flex items-start gap-3">
+                    <div className="gm-bottom-banner-icon flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xl">
+                      ✦
+                    </div>
+                    <div>
+                      <h3 className="gm-heading font-bold">
+                        Tetap siap untuk kegiatan berikutnya
+                      </h3>
+                      <p className="gm-muted mt-1 text-sm">
+                        {upcomingItemsCount
+                          ? `Kamu memiliki ${upcomingItemsCount} jadwal, pengingat, atau ujian yang perlu diperhatikan.`
+                          : "Mulai dengan menambahkan jadwal atau pengingat pertamamu."}
+                      </p>
+                    </div>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {upcomingSchedules.slice(0, 3).map((s) => (
-                      <div key={s.id} className="rounded-xl border border-white/[0.07] p-4">
-                        <p className="text-xs text-blue-300">{dateLabel(s.date)}</p>
-                        <p className="mt-2 font-semibold text-white">{s.subject}</p>
-                        <p className="mt-1 text-xs text-slate-500">{s.className} · {s.startTime}</p>
-                      </div>
-                    ))}
-                    {!upcomingSchedules.length && (
-                      <p className="text-sm text-slate-500">Belum ada agenda mendatang.</p>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPage("Agenda & Reminder")}
+                    className="gm-primary-button shrink-0 rounded-xl px-4 py-3 text-sm font-bold transition"
+                  >
+                    Atur agenda →
+                  </button>
                 </section>
               </>
             )}
 
+            {page === "Kalender" && (
+              <section className={cardClass}>
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="gm-card-eyebrow">KALENDER</p>
+                    <h2 className="gm-heading mt-2 text-xl font-bold">
+                      Kalender kegiatan
+                    </h2>
+                    <p className="gm-muted mt-1 text-sm">
+                      Lihat jadwal, pengingat, dan ujian berdasarkan tanggal.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="gm-icon-button rounded-xl px-3 py-2"
+                      aria-label="Bulan sebelumnya"
+                      onClick={() =>
+                        setCalendarMonth(
+                          new Date(
+                            calendarMonth.getFullYear(),
+                            calendarMonth.getMonth() - 1,
+                            1,
+                          ),
+                        )
+                      }
+                    >
+                      ←
+                    </button>
+                    <span className="gm-heading min-w-32 text-center text-sm font-bold capitalize">
+                      {monthName}
+                    </span>
+                    <button
+                      type="button"
+                      className="gm-icon-button rounded-xl px-3 py-2"
+                      aria-label="Bulan berikutnya"
+                      onClick={() =>
+                        setCalendarMonth(
+                          new Date(
+                            calendarMonth.getFullYear(),
+                            calendarMonth.getMonth() + 1,
+                            1,
+                          ),
+                        )
+                      }
+                    >
+                      →
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-7 gap-2 text-center text-xs">
+                  {["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map(
+                    (day) => (
+                      <div key={day} className="gm-muted py-2 font-semibold">
+                        {day}
+                      </div>
+                    ),
+                  )}
+                  {calendarDays.map((day, index) => {
+                    const daySchedules = day
+                      ? data.schedules.filter((item) => item.date === day).length
+                      : 0;
+                    const dayReminders = day
+                      ? data.reminders.filter(
+                          (item) => item.date === day && !item.completed,
+                        ).length
+                      : 0;
+                    const dayExams = day
+                      ? data.exams.filter(
+                          (item) =>
+                            item.date === day && item.status === "upcoming",
+                        ).length
+                      : 0;
+                    const count = daySchedules + dayReminders + dayExams;
+
+                    return (
+                      <button
+                        key={day ?? `empty-${index}`}
+                        type="button"
+                        disabled={!day}
+                        onClick={() => {
+                          if (day) {
+                            setAttendanceDate(day);
+                            setPage("Agenda & Reminder");
+                          }
+                        }}
+                        className={`gm-calendar-day min-h-[66px] rounded-xl border p-2 text-left transition sm:min-h-24 sm:p-3 ${
+                          day === today ? "is-today" : ""
+                        } ${day ? "is-active" : "is-empty"}`}
+                      >
+                        {day && (
+                          <>
+                            <span className="text-xs font-semibold">
+                              {Number(day.slice(-2))}
+                            </span>
+                            {count > 0 && (
+                              <div className="mt-2 space-y-1">
+                                <span className="gm-calendar-count inline-flex rounded-md px-1.5 py-1 text-[9px] font-bold sm:text-[10px]">
+                                  {count} agenda
+                                </span>
+                                <div className="flex gap-1">
+                                  {daySchedules > 0 && (
+                                    <span className="gm-calendar-dot schedule" />
+                                  )}
+                                  {dayReminders > 0 && (
+                                    <span className="gm-calendar-dot reminder" />
+                                  )}
+                                  {dayExams > 0 && (
+                                    <span className="gm-calendar-dot exam" />
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="gm-calendar-legend mt-5 flex flex-wrap gap-4 border-t pt-4 text-xs">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="gm-calendar-dot schedule" /> Jadwal
+                    mengajar
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="gm-calendar-dot reminder" /> Pengingat
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="gm-calendar-dot exam" /> Ujian
+                  </span>
+                </div>
+              </section>
+            )}
+
             {page === "Jadwal Mengajar" && (
-              <div className="grid items-start gap-6 xl:grid-cols-[360px_1fr]">
+              <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
                 <section className={cardClass}>
-                  <h2 className="mb-5 text-lg font-semibold text-white">Tambah jadwal</h2>
-                  <form onSubmit={submitSchedule} className="space-y-3">
+                  <PageHeading
+                    eyebrow="PENJADWALAN"
+                    title="Tambah jadwal"
+                    description="Catat waktu, kelas, dan materi yang akan diajarkan."
+                  />
+                  <form className="mt-5 space-y-4" onSubmit={submitSchedule}>
                     <Field label="Mata pelajaran">
-                      <input required className={inputClass} value={scheduleForm.subject} onChange={(e) => setScheduleForm({ ...scheduleForm, subject: e.target.value })} placeholder="Contoh: Matematika" />
+                      <input
+                        className={inputClass}
+                        value={scheduleForm.subject}
+                        onChange={(event) =>
+                          setScheduleForm({
+                            ...scheduleForm,
+                            subject: event.target.value,
+                          })
+                        }
+                        required
+                        placeholder="Contoh: Matematika"
+                      />
                     </Field>
                     <Field label="Kelas">
-                      <input required className={inputClass} value={scheduleForm.className} onChange={(e) => setScheduleForm({ ...scheduleForm, className: e.target.value })} placeholder="Contoh: X IPA 1" />
+                      <input
+                        className={inputClass}
+                        value={scheduleForm.className}
+                        onChange={(event) =>
+                          setScheduleForm({
+                            ...scheduleForm,
+                            className: event.target.value,
+                          })
+                        }
+                        required
+                        placeholder="Contoh: VII A"
+                      />
                     </Field>
                     <Field label="Tanggal">
-                      <input required type="date" className={inputClass} value={scheduleForm.date} onChange={(e) => setScheduleForm({ ...scheduleForm, date: e.target.value })} />
+                      <input
+                        className={inputClass}
+                        type="date"
+                        value={scheduleForm.date}
+                        onChange={(event) =>
+                          setScheduleForm({
+                            ...scheduleForm,
+                            date: event.target.value,
+                          })
+                        }
+                        required
+                      />
                     </Field>
                     <div className="grid grid-cols-2 gap-3">
                       <Field label="Mulai">
-                        <input required type="time" className={inputClass} value={scheduleForm.startTime} onChange={(e) => setScheduleForm({ ...scheduleForm, startTime: e.target.value })} />
+                        <input
+                          className={inputClass}
+                          type="time"
+                          value={scheduleForm.startTime}
+                          onChange={(event) =>
+                            setScheduleForm({
+                              ...scheduleForm,
+                              startTime: event.target.value,
+                            })
+                          }
+                          required
+                        />
                       </Field>
                       <Field label="Selesai">
-                        <input required type="time" className={inputClass} value={scheduleForm.endTime} onChange={(e) => setScheduleForm({ ...scheduleForm, endTime: e.target.value })} />
+                        <input
+                          className={inputClass}
+                          type="time"
+                          value={scheduleForm.endTime}
+                          onChange={(event) =>
+                            setScheduleForm({
+                              ...scheduleForm,
+                              endTime: event.target.value,
+                            })
+                          }
+                          required
+                        />
                       </Field>
                     </div>
-                    <Field label="Ruangan">
-                      <input required className={inputClass} value={scheduleForm.room} onChange={(e) => setScheduleForm({ ...scheduleForm, room: e.target.value })} placeholder="Ruang 12" />
+                    <Field label="Ruang kelas">
+                      <input
+                        className={inputClass}
+                        value={scheduleForm.room}
+                        onChange={(event) =>
+                          setScheduleForm({
+                            ...scheduleForm,
+                            room: event.target.value,
+                          })
+                        }
+                        placeholder="Opsional"
+                      />
                     </Field>
-                    <Field label="Materi">
-                      <input required className={inputClass} value={scheduleForm.topic} onChange={(e) => setScheduleForm({ ...scheduleForm, topic: e.target.value })} placeholder="Materi pembelajaran" />
+                    <Field label="Materi / catatan">
+                      <textarea
+                        className={inputClass}
+                        rows={3}
+                        value={scheduleForm.topic}
+                        onChange={(event) =>
+                          setScheduleForm({
+                            ...scheduleForm,
+                            topic: event.target.value,
+                          })
+                        }
+                        placeholder="Materi yang akan diajarkan"
+                      />
                     </Field>
-                    <button className={`${buttonClass} w-full`}>Simpan jadwal</button>
+                    <button className={buttonClass} type="submit">
+                      Simpan jadwal →
+                    </button>
                   </form>
                 </section>
 
                 <section className={cardClass}>
-                  <h2 className="mb-5 text-lg font-semibold text-white">Semua jadwal</h2>
-                  <div className="space-y-3">
-                    {upcomingSchedules.map((s) => <ScheduleCard key={s.id} item={s} showDate />)}
-                    {!upcomingSchedules.length && <Empty title="Belum ada jadwal" detail="Jadwal yang kamu buat akan ditampilkan di sini." />}
+                  <PageHeading
+                    eyebrow="JADWAL TERSIMPAN"
+                    title="Jadwal mendatang"
+                    description="Daftar jadwal yang belum lewat."
+                  />
+                  <div className="mt-5 space-y-3">
+                    {upcomingSchedules.map((item) => (
+                      <ScheduleCard key={item.id} item={item} showDate />
+                    ))}
+                    {!upcomingSchedules.length && (
+                      <Empty
+                        title="Belum ada jadwal"
+                        detail="Jadwal yang kamu simpan akan muncul di sini."
+                      />
+                    )}
                   </div>
                 </section>
               </div>
             )}
 
             {page === "Agenda & Reminder" && (
-              <div className="grid items-start gap-6 xl:grid-cols-[360px_1fr]">
+              <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
                 <section className={cardClass}>
-                  <h2 className="mb-5 text-lg font-semibold text-white">Buat pengingat</h2>
-                  <form onSubmit={submitReminder} className="space-y-3">
-                    <Field label="Nama agenda">
-                      <input required className={inputClass} value={reminderForm.title} onChange={(e) => setReminderForm({ ...reminderForm, title: e.target.value })} placeholder="Contoh: Siapkan materi" />
+                  <PageHeading
+                    eyebrow="PENGINGAT PRIBADI"
+                    title="Buat pengingat"
+                    description="Catat agenda supaya kegiatan penting tidak terlewat."
+                  />
+                  <form className="mt-5 space-y-4" onSubmit={submitReminder}>
+                    <Field label="Judul agenda">
+                      <input
+                        className={inputClass}
+                        value={reminderForm.title}
+                        onChange={(event) =>
+                          setReminderForm({
+                            ...reminderForm,
+                            title: event.target.value,
+                          })
+                        }
+                        required
+                        placeholder="Contoh: Persiapkan materi"
+                      />
                     </Field>
                     <Field label="Keterangan">
-                      <textarea required className={inputClass} rows={3} value={reminderForm.detail} onChange={(e) => setReminderForm({ ...reminderForm, detail: e.target.value })} placeholder="Catatan tambahan" />
+                      <textarea
+                        className={inputClass}
+                        rows={3}
+                        value={reminderForm.detail}
+                        onChange={(event) =>
+                          setReminderForm({
+                            ...reminderForm,
+                            detail: event.target.value,
+                          })
+                        }
+                        placeholder="Detail pengingat"
+                      />
                     </Field>
-                    <Field label="Tanggal">
-                      <input required type="date" className={inputClass} value={reminderForm.date} onChange={(e) => setReminderForm({ ...reminderForm, date: e.target.value })} />
-                    </Field>
-                    <Field label="Waktu">
-                      <input required type="time" className={inputClass} value={reminderForm.time} onChange={(e) => setReminderForm({ ...reminderForm, time: e.target.value })} />
-                    </Field>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Tanggal">
+                        <input
+                          className={inputClass}
+                          type="date"
+                          value={reminderForm.date}
+                          onChange={(event) =>
+                            setReminderForm({
+                              ...reminderForm,
+                              date: event.target.value,
+                            })
+                          }
+                          required
+                        />
+                      </Field>
+                      <Field label="Waktu">
+                        <input
+                          className={inputClass}
+                          type="time"
+                          value={reminderForm.time}
+                          onChange={(event) =>
+                            setReminderForm({
+                              ...reminderForm,
+                              time: event.target.value,
+                            })
+                          }
+                          required
+                        />
+                      </Field>
+                    </div>
                     <Field label="Jenis pengingat">
-                      <select className={inputClass} value={reminderForm.type} onChange={(e) => setReminderForm({ ...reminderForm, type: e.target.value as Reminder["type"] })}>
+                      <select
+                        className={inputClass}
+                        value={reminderForm.type}
+                        onChange={(event) =>
+                          setReminderForm({
+                            ...reminderForm,
+                            type: event.target.value as Reminder["type"],
+                          })
+                        }
+                      >
                         <option value="today">Agenda hari ini</option>
                         <option value="tomorrow">Persiapan besok</option>
                         <option value="meeting">Rapat / pertemuan</option>
                       </select>
                     </Field>
-                    <button className={`${buttonClass} w-full`}>Simpan pengingat</button>
+                    <button className={buttonClass} type="submit">
+                      Simpan pengingat →
+                    </button>
                   </form>
                 </section>
 
                 <section className={cardClass}>
-                  <h2 className="mb-5 text-lg font-semibold text-white">Agenda aktif</h2>
-                  <div className="space-y-3">
-                    {reminders.map((r) => <ReminderRow key={r.id} item={r} onToggle={() => finishReminder(r.id)} showDate />)}
-                    {!reminders.length && <Empty title="Tidak ada pengingat aktif" detail="Buat pengingat untuk mencatat agenda penting." />}
-                  </div>
-                  <h3 className="mb-3 mt-8 font-semibold text-white">Agenda selesai</h3>
-                  <div className="space-y-2">
-                    {data.reminders.filter((r) => r.completed).map((r) => (
-                      <ReminderRow key={r.id} item={r} onToggle={() => finishReminder(r.id)} showDate />
-                    ))}
-                    {!data.reminders.some((r) => r.completed) && (
-                      <p className="text-xs text-slate-500">Belum ada agenda yang diselesaikan.</p>
+                  <PageHeading
+                    eyebrow="DAFTAR AGENDA"
+                    title="Daftar pengingat"
+                    description="Tandai agenda yang sudah diselesaikan."
+                  />
+                  <div className="mt-5 space-y-3">
+                    {data.reminders
+                      .slice()
+                      .sort((a, b) =>
+                        `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`),
+                      )
+                      .map((item) => (
+                        <ReminderRow
+                          key={item.id}
+                          item={item}
+                          onToggle={() => finishReminder(item.id)}
+                          showDate
+                        />
+                      ))}
+                    {!data.reminders.length && (
+                      <Empty
+                        title="Belum ada pengingat"
+                        detail="Buat pengingat pertama untuk mengatur agenda."
+                      />
                     )}
                   </div>
                 </section>
@@ -562,143 +1618,627 @@ function App() {
             )}
 
             {page === "Ujian" && (
-              <div className="grid items-start gap-6 xl:grid-cols-[360px_1fr]">
+              <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
                 <section className={cardClass}>
-                  <h2 className="mb-5 text-lg font-semibold text-white">Tambah ujian</h2>
-                  <form onSubmit={submitExam} className="space-y-3">
+                  <PageHeading
+                    eyebrow="EVALUASI AKADEMIK"
+                    title="Tambah jadwal ujian"
+                    description="Atur waktu ujian agar persiapannya lebih mudah."
+                  />
+                  <form className="mt-5 space-y-4" onSubmit={submitExam}>
                     <Field label="Nama ujian">
-                      <input required className={inputClass} value={examForm.title} onChange={(e) => setExamForm({ ...examForm, title: e.target.value })} placeholder="Ujian Tengah Semester" />
+                      <input
+                        className={inputClass}
+                        value={examForm.title}
+                        onChange={(event) =>
+                          setExamForm({
+                            ...examForm,
+                            title: event.target.value,
+                          })
+                        }
+                        required
+                        placeholder="Contoh: Ulangan harian"
+                      />
                     </Field>
                     <Field label="Mata pelajaran">
-                      <input required className={inputClass} value={examForm.subject} onChange={(e) => setExamForm({ ...examForm, subject: e.target.value })} placeholder="Bahasa Indonesia" />
+                      <input
+                        className={inputClass}
+                        value={examForm.subject}
+                        onChange={(event) =>
+                          setExamForm({
+                            ...examForm,
+                            subject: event.target.value,
+                          })
+                        }
+                        required
+                        placeholder="Contoh: IPA"
+                      />
                     </Field>
                     <Field label="Kelas">
-                      <input required className={inputClass} value={examForm.className} onChange={(e) => setExamForm({ ...examForm, className: e.target.value })} placeholder="XI IPA 2" />
+                      <input
+                        className={inputClass}
+                        value={examForm.className}
+                        onChange={(event) =>
+                          setExamForm({
+                            ...examForm,
+                            className: event.target.value,
+                          })
+                        }
+                        required
+                        placeholder="Contoh: VIII B"
+                      />
                     </Field>
-                    <Field label="Tanggal">
-                      <input required type="date" className={inputClass} value={examForm.date} onChange={(e) => setExamForm({ ...examForm, date: e.target.value })} />
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Tanggal">
+                        <input
+                          className={inputClass}
+                          type="date"
+                          value={examForm.date}
+                          onChange={(event) =>
+                            setExamForm({
+                              ...examForm,
+                              date: event.target.value,
+                            })
+                          }
+                          required
+                        />
+                      </Field>
+                      <Field label="Waktu">
+                        <input
+                          className={inputClass}
+                          type="time"
+                          value={examForm.time}
+                          onChange={(event) =>
+                            setExamForm({
+                              ...examForm,
+                              time: event.target.value,
+                            })
+                          }
+                          required
+                        />
+                      </Field>
+                    </div>
+                    <Field label="Ruang">
+                      <input
+                        className={inputClass}
+                        value={examForm.room}
+                        onChange={(event) =>
+                          setExamForm({
+                            ...examForm,
+                            room: event.target.value,
+                          })
+                        }
+                        placeholder="Opsional"
+                      />
                     </Field>
-                    <Field label="Waktu">
-                      <input required type="time" className={inputClass} value={examForm.time} onChange={(e) => setExamForm({ ...examForm, time: e.target.value })} />
-                    </Field>
-                    <Field label="Ruangan">
-                      <input required className={inputClass} value={examForm.room} onChange={(e) => setExamForm({ ...examForm, room: e.target.value })} placeholder="Ruang ujian" />
-                    </Field>
-                    <button className={`${buttonClass} w-full`}>Simpan ujian</button>
+                    <button className={buttonClass} type="submit">
+                      Simpan ujian →
+                    </button>
                   </form>
                 </section>
+
                 <section className={cardClass}>
-                  <h2 className="mb-5 text-lg font-semibold text-white">Daftar ujian</h2>
-                  <div className="space-y-3">
-                    {exams.map((exam) => (
-                      <div key={exam.id} className="rounded-xl border border-white/[0.07] p-4">
+                  <PageHeading
+                    eyebrow="JADWAL EVALUASI"
+                    title="Ujian mendatang"
+                    description="Daftar ujian yang masih berstatus akan datang."
+                  />
+                  <div className="mt-5 space-y-3">
+                    {exams.map((item) => (
+                      <div
+                        key={item.id}
+                        className="gm-exam-card rounded-2xl border p-4 sm:p-5"
+                      >
                         <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <h3 className="font-semibold text-white">{exam.title}</h3>
-                            <p className="mt-1 text-sm text-slate-400">{exam.subject} · {exam.className}</p>
-                            <p className="mt-2 text-xs text-slate-500">{dateLabel(exam.date)} · {exam.time} · {exam.room}</p>
+                          <div className="flex items-start gap-3">
+                            <div className="gm-exam-icon flex h-11 w-11 shrink-0 items-center justify-center rounded-xl">
+                              ▤
+                            </div>
+                            <div>
+                              <h3 className="gm-heading font-bold">
+                                {item.title}
+                              </h3>
+                              <p className="gm-muted mt-1 text-sm">
+                                {item.subject} · {item.className}
+                              </p>
+                            </div>
                           </div>
-                          <span className="rounded-full bg-blue-500/10 px-3 py-1 text-xs text-blue-300">Mendatang</span>
+                          <span className="gm-exam-date rounded-xl px-3 py-2 text-xs font-semibold">
+                            {dateLabel(item.date)}
+                          </span>
+                        </div>
+                        <div className="gm-muted mt-4 flex flex-wrap gap-3 border-t pt-3 text-xs">
+                          <span>◷ {item.time}</span>
+                          {item.room && <span>▣ Ruang {item.room}</span>}
                         </div>
                       </div>
                     ))}
-                    {!exams.length && <Empty title="Belum ada ujian" detail="Tambahkan jadwal ujian pada formulir." />}
+                    {!exams.length && (
+                      <Empty
+                        title="Belum ada ujian"
+                        detail="Jadwal ujian yang ditambahkan akan muncul di sini."
+                      />
+                    )}
                   </div>
                 </section>
               </div>
             )}
 
-            {page === "Kalender" && (
-              <section className={cardClass}>
-                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-xl font-semibold text-white">{monthName}</h2>
-                    <p className="mt-1 text-xs text-slate-500">Jadwal mengajar dan ujian</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button className="rounded-lg border border-white/10 px-3 py-2 hover:bg-white/5" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}>←</button>
-                    <button className="rounded-lg border border-white/10 px-3 py-2 text-xs hover:bg-white/5" onClick={() => setCalendarMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Hari ini</button>
-                    <button className="rounded-lg border border-white/10 px-3 py-2 hover:bg-white/5" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}>→</button>
-                  </div>
-                </div>
-                <div className="grid grid-cols-7 gap-2">
-                  {["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map((day) => (
-                    <div key={day} className="py-2 text-center text-xs text-slate-500">{day}</div>
-                  ))}
-                  {calendarDays.map((date, i) => {
-                    if (!date) return <div key={`empty-${i}`} />;
-                    const daySchedules = data.schedules.filter((s) => s.date === date);
-                    const dayExams = data.exams.filter((e) => e.date === date);
-                    const isToday = date === today;
-                    return (
-                      <div key={date} className={`min-h-24 rounded-xl border p-2 ${isToday ? "border-blue-400/40 bg-blue-500/10" : "border-white/[0.06] bg-white/[0.015]"}`}>
-                        <p className={`text-xs font-semibold ${isToday ? "text-blue-300" : "text-slate-400"}`}>{Number(date.slice(-2))}</p>
-                        {daySchedules.slice(0, 2).map((s) => (
-                          <p key={s.id} className="mt-2 truncate rounded bg-blue-500/10 px-1 py-1 text-[9px] text-blue-300" title={s.subject}>{s.startTime} {s.subject}</p>
-                        ))}
-                        {dayExams.slice(0, 1).map((e) => (
-                          <p key={e.id} className="mt-1 truncate rounded bg-violet-500/10 px-1 py-1 text-[9px] text-violet-300" title={e.title}>{e.time} Ujian</p>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="mt-5 flex flex-wrap gap-4 text-xs text-slate-400">
-                  <span>🔵 Jadwal mengajar</span><span>🟣 Ujian</span>
-                </div>
-              </section>
-            )}
-
             {page === "Akademik" && (
               <div className="space-y-6">
                 <section className={cardClass}>
-                  <h2 className="text-lg font-semibold text-white">Data akademik</h2>
-                  <p className="mt-2 text-sm text-slate-500">Ringkasan data siswa dan nilai yang tersimpan.</p>
+                  <PageHeading
+                    eyebrow="PUSAT AKADEMIK"
+                    title="Data akademik"
+                    description="Kelola data siswa, ujian, dan nilai dalam satu tempat."
+                  />
                   <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
                     {[
-                      ["Jumlah siswa", data.students.length],
-                      ["Data ujian", data.exams.length],
-                      ["Nilai tersimpan", data.grades.length],
-                      ["Kelas", new Set(data.students.map((s) => s.className)).size],
-                    ].map(([label, value]) => (
-                      <div key={String(label)} className="rounded-xl border border-white/[0.07] p-4">
-                        <p className="text-2xl font-bold text-white">{value}</p>
-                        <p className="mt-1 text-xs text-slate-500">{label}</p>
+                      {
+                        label: "Jumlah siswa",
+                        value: data.students.length,
+                        icon: "◎",
+                      },
+                      {
+                        label: "Data ujian",
+                        value: data.exams.length,
+                        icon: "▤",
+                      },
+                      {
+                        label: "Nilai tersimpan",
+                        value: data.grades.length,
+                        icon: "✓",
+                      },
+                      {
+                        label: "Jumlah kelas",
+                        value: new Set(
+                          data.students.map((item) => item.className),
+                        ).size,
+                        icon: "▦",
+                      },
+                    ].map((stat) => (
+                      <div
+                        key={stat.label}
+                        className="gm-academic-stat rounded-2xl border p-4"
+                      >
+                        <div className="gm-academic-stat-icon flex h-9 w-9 items-center justify-center rounded-xl">
+                          {stat.icon}
+                        </div>
+                        <p className="gm-heading mt-4 text-2xl font-extrabold">
+                          {stat.value}
+                        </p>
+                        <p className="gm-muted mt-1 text-xs">{stat.label}</p>
                       </div>
                     ))}
                   </div>
                 </section>
+
                 <section className={cardClass}>
-                  <h3 className="mb-4 font-semibold text-white">Daftar siswa</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[500px] text-left text-sm">
-                      <thead className="text-xs text-slate-500">
-                        <tr><th className="pb-3">Nama</th><th className="pb-3">Kelas</th><th className="pb-3">NIS</th><th className="pb-3">Rata-rata</th></tr>
+                  <PageHeading
+                    eyebrow="DATABASE SISWA"
+                    title="Tambah siswa"
+                    description="Masukkan identitas siswa untuk pencatatan akademik dan absensi."
+                  />
+                  <form
+                    onSubmit={submitStudent}
+                    className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+                  >
+                    <Field label="Nama lengkap">
+                      <input
+                        className={inputClass}
+                        value={studentForm.name}
+                        onChange={(event) =>
+                          setStudentForm({
+                            ...studentForm,
+                            name: event.target.value,
+                          })
+                        }
+                        placeholder="Nama siswa"
+                        required
+                      />
+                    </Field>
+                    <Field label="Kelas">
+                      <input
+                        className={inputClass}
+                        value={studentForm.className}
+                        onChange={(event) =>
+                          setStudentForm({
+                            ...studentForm,
+                            className: event.target.value,
+                          })
+                        }
+                        placeholder="Contoh: X IPA 1"
+                        required
+                      />
+                    </Field>
+                    <Field label="NIS (opsional)">
+                      <input
+                        className={inputClass}
+                        value={studentForm.nis}
+                        onChange={(event) =>
+                          setStudentForm({
+                            ...studentForm,
+                            nis: event.target.value,
+                          })
+                        }
+                        placeholder="Nomor induk siswa"
+                      />
+                    </Field>
+                    <div className="flex items-end">
+                      <button className={`${buttonClass} w-full`} type="submit">
+                        ＋ Simpan siswa
+                      </button>
+                    </div>
+                  </form>
+                </section>
+
+                <section className={cardClass}>
+                  <PageHeading
+                    eyebrow="DATA TERSIMPAN"
+                    title="Daftar siswa"
+                    description="Daftar siswa yang telah dimasukkan."
+                  />
+                  <div className="mt-5 overflow-x-auto">
+                    <table className="gm-data-table w-full min-w-[500px] text-left text-sm">
+                      <thead>
+                        <tr>
+                          <th className="pb-3">Nama</th>
+                          <th className="pb-3">Kelas</th>
+                          <th className="pb-3">NIS</th>
+                          <th className="pb-3">Rata-rata</th>
+                        </tr>
                       </thead>
                       <tbody>
-                        {data.students.map((student) => (
-                          <tr key={student.id} className="border-t border-white/[0.06]">
-                            <td className="py-3 text-white">{student.name}</td>
-                            <td className="py-3 text-slate-400">{student.className}</td>
-                            <td className="py-3 text-slate-400">{student.nis}</td>
-                            <td className="py-3 text-blue-300">{student.average}</td>
+                        {data.students.map((item) => (
+                          <tr key={item.id}>
+                            <td className="py-3 font-semibold">{item.name}</td>
+                            <td className="py-3">{item.className}</td>
+                            <td className="py-3">{item.nis || "—"}</td>
+                            <td className="py-3 font-bold">{item.average}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  {!data.students.length && <Empty title="Belum ada data siswa" detail="Data siswa yang tersedia akan muncul di tabel ini." />}
+                  {!data.students.length && (
+                    <Empty
+                      title="Belum ada data siswa"
+                      detail="Data siswa yang tersedia akan muncul di tabel ini."
+                    />
+                  )}
                 </section>
+
                 <section className={cardClass}>
-                  <h3 className="mb-4 font-semibold text-white">Nilai tersimpan</h3>
-                  <div className="space-y-2">
-                    {data.grades.map((grade) => (
-                      <div key={grade.id} className="flex flex-wrap justify-between gap-3 rounded-xl border border-white/[0.06] p-3">
-                        <span className="text-sm text-slate-300">Siswa: {grade.studentId} · Ujian: {grade.examId}</span>
-                        <span className="font-semibold text-blue-300">{grade.score}</span>
+                  <PageHeading
+                    eyebrow="PENILAIAN"
+                    title="Input nilai siswa"
+                    description="Nilai yang disimpan akan memperbarui rata-rata siswa secara otomatis."
+                  />
+                  <form
+                    onSubmit={submitGrade}
+                    className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+                  >
+                    <Field label="Siswa">
+                      <select
+                        className={inputClass}
+                        value={gradeForm.studentId}
+                        onChange={(event) =>
+                          setGradeForm({
+                            ...gradeForm,
+                            studentId: event.target.value,
+                          })
+                        }
+                        required
+                      >
+                        <option value="">Pilih siswa</option>
+                        {data.students.map((student) => (
+                          <option key={student.id} value={student.id}>
+                            {student.name} — {student.className}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Ujian">
+                      <select
+                        className={inputClass}
+                        value={gradeForm.examId}
+                        onChange={(event) =>
+                          setGradeForm({
+                            ...gradeForm,
+                            examId: event.target.value,
+                          })
+                        }
+                        required
+                      >
+                        <option value="">Pilih ujian</option>
+                        {data.exams.map((exam) => (
+                          <option key={exam.id} value={exam.id}>
+                            {exam.title} — {exam.subject} ({exam.className})
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Nilai (0–100)">
+                      <input
+                        className={inputClass}
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={gradeForm.score}
+                        onChange={(event) =>
+                          setGradeForm({
+                            ...gradeForm,
+                            score: event.target.value,
+                          })
+                        }
+                        placeholder="Contoh: 85"
+                        required
+                      />
+                    </Field>
+                    <div className="flex items-end">
+                      <button
+                        className={`${buttonClass} w-full`}
+                        type="submit"
+                        disabled={!data.students.length || !data.exams.length}
+                      >
+                        Simpan nilai
+                      </button>
+                    </div>
+                  </form>
+                  {(!data.students.length || !data.exams.length) && (
+                    <p className="gm-inline-warning mt-3 rounded-xl px-3 py-2 text-xs">
+                      Tambahkan data siswa dan jadwal ujian terlebih dahulu
+                      sebelum memasukkan nilai.
+                    </p>
+                  )}
+                </section>
+
+                <section className={cardClass}>
+                  <PageHeading
+                    eyebrow="REKAP NILAI"
+                    title="Nilai tersimpan"
+                    description="Hasil penilaian yang sudah dimasukkan."
+                  />
+                  <div className="mt-5 space-y-2">
+                    {data.grades.map((item) => (
+                      <div
+                        key={item.id}
+                        className="gm-grade-row flex flex-wrap justify-between gap-3 rounded-xl border p-3 sm:p-4"
+                      >
+                        <span className="text-sm">
+                          Siswa:{" "}
+                          {data.students.find(
+                            (student) => student.id === item.studentId,
+                          )?.name ?? "Siswa dihapus"}{" "}
+                          · Ujian:{" "}
+                          {data.exams.find(
+                            (exam) => exam.id === item.examId,
+                          )?.title ?? "Ujian dihapus"}
+                        </span>
+                        <span className="gm-grade-score font-extrabold">
+                          {item.score}
+                        </span>
                       </div>
                     ))}
-                    {!data.grades.length && <p className="text-sm text-slate-500">Belum ada nilai tersimpan.</p>}
+                    {!data.grades.length && (
+                      <Empty
+                        title="Belum ada nilai"
+                        detail="Nilai yang sudah disimpan akan muncul di sini."
+                      />
+                    )}
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {page === "Absensi" && (
+              <div className="space-y-6">
+                <section className={cardClass}>
+                  <PageHeading
+                    eyebrow="KEHADIRAN KELAS"
+                    title="Absensi siswa"
+                    description="Pilih tanggal dan kelas, lalu tetapkan status kehadiran setiap siswa."
+                  />
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <Field label="Tanggal absensi">
+                      <input
+                        className={inputClass}
+                        type="date"
+                        value={attendanceDate}
+                        onChange={(event) =>
+                          setAttendanceDate(event.target.value)
+                        }
+                      />
+                    </Field>
+                    <Field label="Kelas">
+                      <select
+                        className={inputClass}
+                        value={attendanceClass}
+                        onChange={(event) =>
+                          setAttendanceClass(event.target.value)
+                        }
+                      >
+                        <option value="">Pilih kelas</option>
+                        {[
+                          ...new Set(
+                            data.students.map((student) => student.className),
+                          ),
+                        ]
+                          .sort()
+                          .map((className) => (
+                            <option key={className} value={className}>
+                              {className}
+                            </option>
+                          ))}
+                      </select>
+                    </Field>
+                  </div>
+
+                  <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="gm-heading font-bold">Daftar kehadiran</h3>
+                    <span className="gm-muted text-xs">
+                      {
+                        data.students.filter(
+                          (student) =>
+                            !attendanceClass ||
+                            student.className === attendanceClass,
+                        ).length
+                      }{" "}
+                      siswa
+                    </span>
+                  </div>
+
+                  {!data.students.length ? (
+                    <Empty
+                      title="Belum ada siswa"
+                      detail="Tambahkan siswa terlebih dahulu di menu Akademik."
+                    />
+                  ) : !attendanceClass ? (
+                    <Empty
+                      title="Pilih kelas terlebih dahulu"
+                      detail="Pilih kelas di atas untuk menampilkan daftar siswa yang akan diabsen."
+                    />
+                  ) : (
+                    <div className="mt-4 space-y-2">
+                      {data.students
+                        .filter(
+                          (student) => student.className === attendanceClass,
+                        )
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map((student, index) => {
+                          const record = data.attendance.find(
+                            (item) =>
+                              item.studentId === student.id &&
+                              item.date === attendanceDate,
+                          );
+                          const statusLabels: Record<
+                            AttendanceStatus,
+                            string
+                          > = {
+                            present: "Hadir",
+                            late: "Terlambat",
+                            permission: "Izin",
+                            absent: "Alfa",
+                          };
+
+                          return (
+                            <div
+                              key={student.id}
+                              className="gm-attendance-row grid gap-3 rounded-xl border p-3 sm:grid-cols-[1fr_200px] sm:items-center"
+                            >
+                              <div>
+                                <p className="gm-heading text-sm font-bold">
+                                  {index + 1}. {student.name}
+                                </p>
+                                <p className="gm-muted mt-1 text-xs">
+                                  NIS: {student.nis || "Belum diisi"} ·{" "}
+                                  {student.className}
+                                </p>
+                                <p className="gm-muted mt-1 text-[11px]">
+                                  Status:{" "}
+                                  {record
+                                    ? statusLabels[record.status]
+                                    : "Belum diabsen"}
+                                </p>
+                              </div>
+                              <Field label="Status kehadiran">
+                                <select
+                                  className={inputClass}
+                                  value={record?.status ?? ""}
+                                  onChange={(event) => {
+                                    if (event.target.value) {
+                                      saveAttendance(
+                                        student.id,
+                                        event.target.value as AttendanceStatus,
+                                      );
+                                    }
+                                  }}
+                                >
+                                  <option value="">Pilih status</option>
+                                  <option value="present">Hadir</option>
+                                  <option value="late">Terlambat</option>
+                                  <option value="permission">Izin</option>
+                                  <option value="absent">Alfa</option>
+                                </select>
+                              </Field>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  {attendanceClass &&
+                    data.students.filter(
+                      (student) => student.className === attendanceClass,
+                    ).length === 0 && (
+                      <Empty
+                        title="Belum ada siswa di kelas ini"
+                        detail="Tambahkan siswa dengan nama kelas yang sama di menu Akademik."
+                      />
+                    )}
+                </section>
+
+                <section className={cardClass}>
+                  <PageHeading
+                    eyebrow="RINGKASAN KEHADIRAN"
+                    title={`Rekap absensi · ${dateLabel(attendanceDate)}`}
+                    description={
+                      attendanceClass
+                        ? `Ringkasan kehadiran kelas ${attendanceClass}.`
+                        : "Ringkasan seluruh kelas untuk tanggal yang dipilih."
+                    }
+                  />
+                  <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    {(
+                      [
+                        {
+                          key: "present",
+                          label: "Hadir",
+                          icon: "✓",
+                        },
+                        {
+                          key: "late",
+                          label: "Terlambat",
+                          icon: "◷",
+                        },
+                        {
+                          key: "permission",
+                          label: "Izin",
+                          icon: "✉",
+                        },
+                        {
+                          key: "absent",
+                          label: "Alfa",
+                          icon: "×",
+                        },
+                      ] as {
+                        key: AttendanceStatus;
+                        label: string;
+                        icon: string;
+                      }[]
+                    ).map((status) => (
+                      <div
+                        key={status.key}
+                        className="gm-attendance-stat rounded-2xl border p-4"
+                      >
+                        <span className="gm-muted text-lg">{status.icon}</span>
+                        <p className="gm-heading mt-3 text-2xl font-extrabold">
+                          {
+                            data.attendance.filter(
+                              (item) =>
+                                item.date === attendanceDate &&
+                                (!attendanceClass ||
+                                  item.className === attendanceClass) &&
+                                item.status === status.key,
+                            ).length
+                          }
+                        </p>
+                        <p className="gm-muted mt-1 text-xs">
+                          {status.label}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </section>
               </div>
@@ -706,113 +2246,279 @@ function App() {
 
             {page === "Mengajar" && (
               <section className={cardClass}>
-                <h2 className="text-xl font-semibold text-white">Ringkasan kegiatan mengajar</h2>
-                <p className="mt-2 text-sm text-slate-500">Pantau pembagian kelas dan materi dari jadwal yang kamu simpan.</p>
+                <PageHeading
+                  eyebrow="AKTIVITAS KELAS"
+                  title="Ringkasan kegiatan mengajar"
+                  description="Pantau pembagian kelas dan materi dari jadwal yang kamu simpan."
+                />
                 <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {Array.from(new Set(data.schedules.map((s) => s.className))).map((className) => {
-                    const items = data.schedules.filter((s) => s.className === className);
+                  {Array.from(
+                    new Set(data.schedules.map((item) => item.className)),
+                  ).map((className) => {
+                    const items = data.schedules
+                      .filter((item) => item.className === className)
+                      .sort((a, b) =>
+                        `${a.date}${a.startTime}`.localeCompare(
+                          `${b.date}${b.startTime}`,
+                        ),
+                      );
+
                     return (
-                      <div key={className} className="rounded-xl border border-white/[0.07] p-4">
-                        <p className="text-xs text-blue-300">Kelas</p>
-                        <h3 className="mt-2 text-lg font-semibold text-white">{className}</h3>
-                        <p className="mt-1 text-xs text-slate-500">{items.length} jadwal tersimpan</p>
-                        <div className="mt-4 space-y-2">
-                          {items.slice(0, 4).map((s) => (
-                            <div key={s.id} className="border-t border-white/[0.06] pt-2">
-                              <p className="text-sm text-slate-300">{s.subject}</p>
-                              <p className="mt-1 text-xs text-slate-500">{dateLabel(s.date)} · {s.topic}</p>
+                      <div
+                        key={className}
+                        className="gm-class-card rounded-2xl border p-4 sm:p-5"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="gm-card-eyebrow">KELAS</p>
+                            <h3 className="gm-heading mt-2 text-lg font-bold">
+                              {className}
+                            </h3>
+                          </div>
+                          <span className="gm-class-icon flex h-10 w-10 items-center justify-center rounded-xl">
+                            ▣
+                          </span>
+                        </div>
+                        <p className="gm-muted mt-1 text-xs">
+                          {items.length} jadwal tersimpan
+                        </p>
+                        <div className="mt-4 space-y-3">
+                          {items.slice(0, 4).map((item) => (
+                            <div
+                              key={item.id}
+                              className="gm-class-schedule border-t pt-3"
+                            >
+                              <p className="gm-heading text-sm font-semibold">
+                                {item.subject}
+                              </p>
+                              <p className="gm-muted mt-1 text-xs">
+                                {dateLabel(item.date)} · {item.startTime}
+                              </p>
+                              {item.topic && (
+                                <p className="gm-muted mt-1 text-xs">
+                                  {item.topic}
+                                </p>
+                              )}
                             </div>
                           ))}
                         </div>
                       </div>
                     );
                   })}
-                  {!data.schedules.length && <Empty title="Belum ada kelas" detail="Tambahkan jadwal mengajar terlebih dahulu." />}
+                  {!data.schedules.length && (
+                    <Empty
+                      title="Belum ada kelas"
+                      detail="Tambahkan jadwal mengajar terlebih dahulu."
+                    />
+                  )}
                 </div>
               </section>
             )}
 
             {page === "Laporan" && (
-              <section className={cardClass}>
-                <h2 className="text-xl font-semibold text-white">Laporan aktivitas</h2>
-                <p className="mt-2 text-sm text-slate-500">Ringkasan data GuruMate yang tersimpan saat ini.</p>
-                <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
-                  {[
-                    ["Jadwal mengajar", data.schedules.length],
-                    ["Semua pengingat", data.reminders.length],
-                    ["Ujian terdaftar", data.exams.length],
-                    ["Nilai akademik", data.grades.length],
-                  ].map(([label, value]) => (
-                    <div key={String(label)} className="rounded-xl border border-white/[0.07] p-4">
-                      <p className="text-2xl font-bold text-white">{value}</p>
-                      <p className="mt-1 text-xs text-slate-500">{label}</p>
+              <div className="space-y-6">
+                <section className={cardClass}>
+                  <PageHeading
+                    eyebrow="LAPORAN WORKSPACE"
+                    title="Laporan aktivitas"
+                    description="Ringkasan data GuruMate yang tersimpan saat ini."
+                  />
+                  <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+                    {[
+                      {
+                        label: "Jadwal mengajar",
+                        value: data.schedules.length,
+                        icon: "◷",
+                      },
+                      {
+                        label: "Semua pengingat",
+                        value: data.reminders.length,
+                        icon: "✓",
+                      },
+                      {
+                        label: "Ujian terdaftar",
+                        value: data.exams.length,
+                        icon: "▤",
+                      },
+                      {
+                        label: "Nilai akademik",
+                        value: data.grades.length,
+                        icon: "◎",
+                      },
+                    ].map((stat) => (
+                      <div
+                        key={stat.label}
+                        className="gm-report-stat rounded-2xl border p-4"
+                      >
+                        <span className="gm-report-icon flex h-9 w-9 items-center justify-center rounded-xl">
+                          {stat.icon}
+                        </span>
+                        <p className="gm-heading mt-4 text-2xl font-extrabold">
+                          {stat.value}
+                        </p>
+                        <p className="gm-muted mt-1 text-xs">{stat.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className={cardClass}>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="gm-card-eyebrow">EKSPOR DATA</p>
+                      <h3 className="gm-heading mt-2 text-lg font-bold">
+                        Simpan laporan ke perangkat
+                      </h3>
+                      <p className="gm-muted mt-2 max-w-xl text-sm leading-relaxed">
+                        Ekspor jadwal, agenda, ujian, data siswa, nilai, dan
+                        absensi ke format CSV yang dapat dibuka di Excel atau
+                        Google Sheets.
+                      </p>
                     </div>
-                  ))}
-                </div>
-                <div className="mt-6 rounded-xl border border-white/[0.07] p-4">
-                  <h3 className="font-semibold text-white">Ekspor data</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-500">Unduh jadwal, agenda, ujian, siswa, dan nilai sebagai CSV yang bisa dibuka di Excel atau Google Sheets.</p>
-                  <button onClick={downloadReport} className={`${buttonClass} mt-4`}>Unduh laporan CSV</button>
-                </div>
-              </section>
+                    <button
+                      type="button"
+                      onClick={downloadReport}
+                      className={`${buttonClass} shrink-0`}
+                    >
+                      ↓ Unduh laporan CSV
+                    </button>
+                  </div>
+                </section>
+              </div>
             )}
           </div>
         </main>
       </div>
-
-      <nav className="fixed inset-x-0 bottom-0 z-30 flex justify-around border-t border-white/[0.08] bg-[#0b0f18]/95 px-1 py-2 backdrop-blur-xl lg:hidden">
-        {menus.slice(0, 5).map((item) => (
-          <button
-            key={item.name}
-            onClick={() => setPage(item.name)}
-            className={`flex min-w-0 flex-col items-center gap-1 rounded-xl px-2 py-2 text-[9px] ${page === item.name ? "text-blue-300" : "text-slate-500"}`}
-          >
-            <span className="text-lg">{item.icon}</span>
-            <span>{item.name === "Agenda & Reminder" ? "Agenda" : item.name}</span>
-          </button>
-        ))}
-      </nav>
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
   return (
-    <label className="block space-y-2">
-      <span className="text-xs font-medium text-slate-400">{label}</span>
+    <label className="gm-form-field block space-y-2">
+      <span className="gm-field-label block text-xs font-semibold">
+        {label}
+      </span>
       {children}
     </label>
   );
 }
 
-function ScheduleCard({ item, showDate = false }: { item: Schedule; showDate?: boolean }) {
+function PageHeading({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+}) {
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-white/[0.015] p-4">
+    <div>
+      <p className="gm-card-eyebrow">{eyebrow}</p>
+      <h2 className="gm-heading mt-2 text-xl font-bold">{title}</h2>
+      <p className="gm-muted mt-1 text-sm leading-relaxed">{description}</p>
+    </div>
+  );
+}
+
+function MiniSummaryRow({
+  icon,
+  label,
+  value,
+  accent,
+}: {
+  icon: string;
+  label: string;
+  value: number;
+  accent: "blue" | "violet" | "amber";
+}) {
+  return (
+    <div className={`gm-mini-summary gm-mini-${accent} flex items-center gap-3 rounded-xl border p-3`}>
+      <div className="gm-mini-summary-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
+        {icon}
+      </div>
+      <p className="gm-mini-summary-label min-w-0 flex-1 text-xs font-medium">
+        {label}
+      </p>
+      <span className="gm-mini-summary-value text-lg font-extrabold">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function ScheduleCard({
+  item,
+  showDate = false,
+}: {
+  item: Schedule;
+  showDate?: boolean;
+}) {
+  return (
+    <div className="gm-schedule-card rounded-2xl border p-4">
       <div className="flex flex-wrap items-start gap-3">
-        <div className="flex h-12 min-w-20 flex-col items-center justify-center rounded-lg bg-blue-500/10 px-2">
-          <span className="text-xs font-semibold text-blue-300">{item.startTime}</span>
-          <span className="mt-1 text-[10px] text-slate-500">{item.endTime}</span>
+        <div className="gm-schedule-time flex h-14 min-w-20 flex-col items-center justify-center rounded-xl px-3">
+          <span className="text-xs font-extrabold">{item.startTime}</span>
+          <span className="gm-muted mt-1 text-[10px]">{item.endTime}</span>
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-white">{item.subject} · {item.className}</h3>
-          <p className="mt-1 text-xs text-slate-400">{item.topic}</p>
-          <p className="mt-2 text-xs text-slate-500">{item.room}{showDate ? ` · ${dateLabel(item.date)}` : ""}</p>
+          <h3 className="gm-heading break-words font-bold">
+            {item.subject} · {item.className}
+          </h3>
+          {item.topic && (
+            <p className="gm-muted mt-1 break-words text-xs">{item.topic}</p>
+          )}
+          <div className="gm-muted mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+            {item.room && <span>▣ {item.room}</span>}
+            {showDate && <span>▦ {dateLabel(item.date)}</span>}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function ReminderRow({ item, onToggle, showDate = false }: { item: Reminder; onToggle: () => void; showDate?: boolean }) {
+function ReminderRow({
+  item,
+  onToggle,
+  showDate = false,
+}: {
+  item: Reminder;
+  onToggle: () => void;
+  showDate?: boolean;
+}) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-white/[0.07] p-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">✓</div>
-      <div className="min-w-0 flex-1">
-        <p className={`text-sm font-medium ${item.completed ? "text-slate-500 line-through" : "text-white"}`}>{item.title}</p>
-        <p className="mt-1 text-xs text-slate-500">{item.detail}</p>
-        <p className="mt-1 text-[10px] text-slate-600">{showDate ? dateLabel(item.date) : item.date} · {item.time}</p>
+    <div className={`gm-reminder-row flex items-center gap-3 rounded-2xl border p-3 ${item.completed ? "is-completed" : ""}`}>
+      <div className="gm-reminder-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
+        {item.completed ? "✓" : "◷"}
       </div>
-      <button onClick={onToggle} className="rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5">
+      <div className="min-w-0 flex-1">
+        <p
+          className={`gm-heading break-words text-sm font-semibold ${
+            item.completed ? "line-through opacity-60" : ""
+          }`}
+        >
+          {item.title}
+        </p>
+        {item.detail && (
+          <p className="gm-muted mt-1 break-words text-xs">{item.detail}</p>
+        )}
+        <p className="gm-muted mt-1 text-[10px]">
+          {showDate ? dateLabel(item.date) : item.date} · {item.time}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="gm-reminder-action shrink-0 rounded-xl border px-3 py-2 text-xs font-semibold transition"
+      >
         {item.completed ? "Aktifkan" : "Selesai"}
       </button>
     </div>
@@ -821,10 +2527,14 @@ function ReminderRow({ item, onToggle, showDate = false }: { item: Reminder; onT
 
 function Empty({ title, detail }: { title: string; detail: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-white/10 p-8 text-center">
-      <div className="text-2xl text-slate-600">◇</div>
-      <p className="mt-3 text-sm font-semibold text-slate-300">{title}</p>
-      <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-slate-500">{detail}</p>
+    <div className="gm-empty-state rounded-2xl border border-dashed p-8 text-center">
+      <div className="gm-empty-icon mx-auto flex h-12 w-12 items-center justify-center rounded-2xl text-2xl">
+        ◇
+      </div>
+      <p className="gm-heading mt-3 text-sm font-bold">{title}</p>
+      <p className="gm-muted mx-auto mt-2 max-w-sm text-xs leading-relaxed">
+        {detail}
+      </p>
     </div>
   );
 }

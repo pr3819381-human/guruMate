@@ -51,6 +51,18 @@ export type Grade = {
   score: number;
 };
 
+export type AttendanceStatus = "present" | "late" | "permission" | "absent";
+
+export type Attendance = {
+  id: string;
+  studentId: string;
+  className: string;
+  date: string;
+  status: AttendanceStatus;
+  note: string;
+  checkedAt: string;
+};
+
 export type Activity = {
   id: string;
   title: string;
@@ -65,6 +77,7 @@ export type GuruMateData = {
   exams: Exam[];
   students: Student[];
   grades: Grade[];
+  attendance: Attendance[];
   activities: Activity[];
 };
 
@@ -201,6 +214,7 @@ const initialData: GuruMateData = {
   ],
 
   grades: [],
+  attendance: [],
   activities: [],
 };
 
@@ -230,6 +244,9 @@ function normalizeData(value: unknown): GuruMateData {
       : [],
     grades: Array.isArray(parsed.grades)
       ? (parsed.grades as Grade[])
+      : [],
+    attendance: Array.isArray(parsed.attendance)
+      ? (parsed.attendance as Attendance[])
       : [],
     activities: Array.isArray(parsed.activities)
       ? (parsed.activities as Activity[])
@@ -570,6 +587,52 @@ export function deleteGrade(
     ...data,
     grades,
     students,
+  };
+}
+
+export function upsertAttendance(
+  data: GuruMateData,
+  attendance: Omit<Attendance, "id">,
+): GuruMateData {
+  const existing = data.attendance.find(
+    (item) =>
+      item.studentId === attendance.studentId &&
+      item.date === attendance.date,
+  );
+
+  if (existing) {
+    return {
+      ...data,
+      attendance: data.attendance.map((item) =>
+        item.id === existing.id
+          ? { ...item, ...attendance }
+          : item,
+      ),
+    };
+  }
+
+  return {
+    ...data,
+    attendance: [
+      ...data.attendance,
+      {
+        ...attendance,
+        id: createId("attendance"),
+      },
+    ],
+  };
+}
+
+export function deleteAttendanceByDate(
+  data: GuruMateData,
+  date: string,
+  className: string,
+): GuruMateData {
+  return {
+    ...data,
+    attendance: data.attendance.filter(
+      (item) => !(item.date === date && item.className === className),
+    ),
   };
 }
 

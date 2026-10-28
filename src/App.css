@@ -1,187 +1,1759 @@
+@import "tailwindcss";
 
-.gurumate-shell {
+/* =========================================================
+   GURUMATE — PREMIUM DESIGN SYSTEM
+   Fokus: dashboard, keterbacaan, responsivitas, tema.
+   Tidak mengubah logika aplikasi.
+========================================================= */
+
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --gm-blue: #3978ed;
+  --gm-blue-hover: #2864d8;
+  --gm-indigo: #6258db;
+  --gm-focus: rgba(59, 130, 246, 0.35);
+  --gm-radius: 18px;
+  --gm-transition: 180ms ease;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
   min-height: 100vh;
-  color: #e8edf7;
+  margin: 0;
+  overflow-x: hidden;
 }
 
-.gurumate-card {
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(17, 22, 33, 0.78);
-  box-shadow:
-    0 18px 50px rgba(0, 0, 0, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.025);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-}
-
-.gurumate-card-hover {
-  transition:
-    transform 180ms ease,
-    border-color 180ms ease,
-    background 180ms ease,
-    box-shadow 180ms ease;
-}
-
-.gurumate-card-hover:hover {
-  transform: translateY(-2px);
-  border-color: rgba(96, 165, 250, 0.2);
-  background: rgba(20, 26, 39, 0.9);
-  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.2);
-}
-
-.gurumate-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
-}
-
-.gurumate-scrollbar::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-
-.gurumate-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.gurumate-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.28);
-  border-radius: 999px;
-}
-
-.gurumate-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.45);
-}
-
-.gurumate-glow {
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-}
-
-.gurumate-glow::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  width: 220px;
-  height: 220px;
-  top: -130px;
-  right: -70px;
-  border-radius: 999px;
-  background: rgba(59, 130, 246, 0.13);
-  filter: blur(45px);
-  pointer-events: none;
-}
-
-.gurumate-progress {
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.07);
-  border-radius: 999px;
-}
-
-.gurumate-progress > div {
-  height: 100%;
-  background: linear-gradient(90deg, #3b82f6, #6366f1);
-  border-radius: inherit;
-  transition: width 250ms ease;
-}
-
-.gurumate-sidebar-item {
-  transition:
-    color 160ms ease,
-    background 160ms ease,
-    transform 160ms ease;
-}
-
-.gurumate-sidebar-item:hover {
-  background: rgba(255, 255, 255, 0.045);
-  color: #ffffff;
-}
-
-.gurumate-sidebar-item.active {
-  background: linear-gradient(
-    90deg,
-    rgba(59, 130, 246, 0.16),
-    rgba(99, 102, 241, 0.08)
-  );
-  color: #ffffff;
-  box-shadow: inset 2px 0 0 #60a5fa;
-}
-
-.gurumate-mobile-nav {
-  box-shadow:
-    0 -12px 35px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-.gurumate-calendar-day {
-  min-width: 0;
-  min-height: 76px;
-  transition:
-    background 150ms ease,
-    border-color 150ms ease,
-    transform 150ms ease;
-}
-
-.gurumate-calendar-day:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(96, 165, 250, 0.2);
-}
-
-.gurumate-calendar-day.today {
-  border-color: rgba(96, 165, 250, 0.5);
-  background: rgba(59, 130, 246, 0.09);
-}
-
-.gurumate-calendar-day:active {
-  transform: scale(0.985);
-}
-
+button,
 input,
-textarea,
-select {
-  max-width: 100%;
+select,
+textarea {
+  font: inherit;
 }
 
-input::placeholder,
-textarea::placeholder {
-  color: #64748b;
-  opacity: 1;
+button {
+  -webkit-tap-highlight-color: transparent;
 }
 
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: 0.6;
+}
+
+img,
+svg {
+  max-width: 100%;
 }
 
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
-  outline: 2px solid #60a5fa;
-  outline-offset: 3px;
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--gm-focus);
+  outline-offset: 2px;
 }
 
 ::selection {
-  color: #ffffff;
-  background: rgba(59, 130, 246, 0.45);
+  color: #fff;
+  background: rgba(59, 130, 246, 0.35);
 }
+
+/* =========================================================
+   DARK THEME
+========================================================= */
+
+.gm-app-root.gm-dark {
+  min-height: 100vh;
+  color: #e6edf8;
+  background:
+    radial-gradient(
+      ellipse at 12% 0%,
+      rgba(48, 92, 180, 0.13),
+      transparent 36%
+    ),
+    #0a0f1b;
+  color-scheme: dark;
+
+  --gm-bg: #0a0f1b;
+  --gm-panel: #111a2a;
+  --gm-panel-soft: #162136;
+  --gm-panel-hover: #1b2a43;
+  --gm-border: #2a374c;
+  --gm-text: #e6edf8;
+  --gm-text-secondary: #c4d0e1;
+  --gm-text-muted: #9aa9bf;
+  --gm-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+}
+
+/* =========================================================
+   LIGHT THEME
+========================================================= */
+
+.gm-app-root.gm-light {
+  min-height: 100vh;
+  color: #17243b;
+  background:
+    radial-gradient(
+      ellipse at 8% 0%,
+      rgba(73, 119, 230, 0.07),
+      transparent 34%
+    ),
+    #f4f7fc;
+  color-scheme: light;
+
+  --gm-bg: #f4f7fc;
+  --gm-panel: #ffffff;
+  --gm-panel-soft: #f7f9fd;
+  --gm-panel-hover: #edf4ff;
+  --gm-border: #e1e8f3;
+  --gm-text: #17243b;
+  --gm-text-secondary: #3d4d66;
+  --gm-text-muted: #687991;
+  --gm-shadow: 0 8px 26px rgba(29, 52, 92, 0.045);
+}
+
+/* =========================================================
+   GLOBAL LAYOUT
+========================================================= */
+
+.gm-app-root {
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.gm-app-root main,
+.gm-app-root main > div,
+.gm-app-root section,
+.gm-app-root article {
+  min-width: 0;
+}
+
+.gm-app-root .min-w-0 {
+  min-width: 0;
+}
+
+.gm-app-root .break-words {
+  overflow-wrap: anywhere;
+}
+
+.gm-app-root h1,
+.gm-app-root h2,
+.gm-app-root h3,
+.gm-app-root h4,
+.gm-app-root h5 {
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================
+   TYPOGRAPHY — DARK THEME
+========================================================= */
+
+.gm-app-root.gm-dark h1,
+.gm-app-root.gm-dark h2,
+.gm-app-root.gm-dark h3,
+.gm-app-root.gm-dark h4,
+.gm-app-root.gm-dark h5 {
+  color: #f1f5ff;
+}
+
+.gm-app-root.gm-dark .text-white {
+  color: #fff;
+}
+
+.gm-app-root.gm-dark .text-slate-100 {
+  color: #e8eef9;
+}
+
+.gm-app-root.gm-dark .text-slate-200 {
+  color: #dbe5f3;
+}
+
+.gm-app-root.gm-dark .text-slate-300 {
+  color: #c3d0e2;
+}
+
+.gm-app-root.gm-dark .text-slate-400 {
+  color: #a1b0c6;
+}
+
+.gm-app-root.gm-dark .text-slate-500 {
+  color: #93a2b9;
+}
+
+/* =========================================================
+   TYPOGRAPHY — LIGHT THEME
+========================================================= */
+
+.gm-app-root.gm-light h1,
+.gm-app-root.gm-light h2,
+.gm-app-root.gm-light h3,
+.gm-app-root.gm-light h4,
+.gm-app-root.gm-light h5 {
+  color: #17243b;
+}
+
+.gm-app-root.gm-light .text-slate-100,
+.gm-app-root.gm-light .text-slate-200 {
+  color: #344258;
+}
+
+.gm-app-root.gm-light .text-slate-300 {
+  color: #46566e;
+}
+
+.gm-app-root.gm-light .text-slate-400,
+.gm-app-root.gm-light .text-slate-500 {
+  color: #64748b;
+}
+
+.gm-app-root.gm-light .text-slate-600 {
+  color: #526078;
+}
+
+.gm-app-root.gm-light .text-blue-200,
+.gm-app-root.gm-light .text-blue-300 {
+  color: #1d4ed8;
+}
+
+.gm-app-root.gm-light .text-indigo-300 {
+  color: #5145cd;
+}
+
+.gm-app-root.gm-light .text-emerald-300,
+.gm-app-root.gm-light .text-emerald-400 {
+  color: #087f5b;
+}
+
+.gm-app-root.gm-light .text-red-300,
+.gm-app-root.gm-light .text-red-400 {
+  color: #b4233c;
+}
+
+/* =========================================================
+   HEADER
+========================================================= */
+
+.gm-app-root header {
+  position: relative;
+  z-index: 10;
+  transition:
+    background-color var(--gm-transition),
+    border-color var(--gm-transition);
+}
+
+.gm-app-root.gm-dark header {
+  color: #e6edf8;
+  background: rgba(12, 19, 32, 0.96);
+  border-color: #29364b;
+}
+
+.gm-app-root.gm-light header {
+  color: #17243b;
+  background: rgba(255, 255, 255, 0.96);
+  border-color: #e0e7f1;
+  box-shadow: 0 2px 16px rgba(28, 48, 82, 0.04);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* =========================================================
+   SIDEBAR
+========================================================= */
+
+.gm-app-root aside {
+  min-width: 0;
+}
+
+.gm-app-root.gm-dark aside {
+  color: #e6edf8;
+  background: #101827;
+  border-color: #29364b;
+}
+
+.gm-app-root.gm-light aside {
+  color: #17243b;
+  background: #fff;
+  border-color: #e0e7f1;
+  box-shadow: 4px 0 22px rgba(23, 42, 77, 0.025);
+}
+
+.gm-app-root aside > div {
+  border-color: var(--gm-border);
+}
+
+.gm-app-root aside nav {
+  gap: 5px;
+}
+
+.gm-app-root aside nav button,
+.gm-app-root aside nav a {
+  min-height: 42px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  transition:
+    color var(--gm-transition),
+    background-color var(--gm-transition),
+    border-color var(--gm-transition);
+}
+
+.gm-app-root.gm-dark aside nav button,
+.gm-app-root.gm-dark aside nav a {
+  color: #b7c4d7;
+}
+
+.gm-app-root.gm-dark aside nav button:hover,
+.gm-app-root.gm-dark aside nav a:hover {
+  color: #fff;
+  background: #1a263a;
+}
+
+.gm-app-root.gm-light aside nav button,
+.gm-app-root.gm-light aside nav a {
+  color: #485970;
+  font-weight: 550;
+}
+
+.gm-app-root.gm-light aside nav button:hover,
+.gm-app-root.gm-light aside nav a:hover {
+  color: #1d4ed8;
+  background: #eff5ff;
+}
+
+.gm-app-root.gm-dark aside nav button.bg-blue-500\/10,
+.gm-app-root.gm-dark aside nav a.bg-blue-500\/10 {
+  color: #8db7ff;
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(96, 165, 250, 0.2);
+}
+
+.gm-app-root.gm-light aside nav button.bg-blue-500\/10,
+.gm-app-root.gm-light aside nav a.bg-blue-500\/10 {
+  color: #1d4ed8;
+  background: #eaf2ff;
+  border-color: #d4e3ff;
+  box-shadow: inset 3px 0 0 #3978ed;
+}
+
+/* =========================================================
+   CARDS AND PANELS
+========================================================= */
+
+.gm-app-root.gm-dark .rounded-xl.border,
+.gm-app-root.gm-dark .rounded-2xl.border,
+.gm-app-root.gm-dark .rounded-3xl.border {
+  border-color: var(--gm-border);
+  box-shadow: var(--gm-shadow);
+}
+
+.gm-app-root.gm-light .rounded-xl.border,
+.gm-app-root.gm-light .rounded-2xl.border,
+.gm-app-root.gm-light .rounded-3xl.border {
+  border-color: var(--gm-border);
+  box-shadow: var(--gm-shadow);
+}
+
+.gm-app-root main .rounded-xl.border,
+.gm-app-root main .rounded-2xl.border,
+.gm-app-root main .rounded-3xl.border {
+  transition:
+    border-color var(--gm-transition),
+    box-shadow var(--gm-transition),
+    transform var(--gm-transition);
+}
+
+.gm-app-root.gm-light main .rounded-xl.border:hover,
+.gm-app-root.gm-light main .rounded-2xl.border:hover {
+  border-color: #d0def5;
+  box-shadow: 0 12px 30px rgba(37, 75, 143, 0.075);
+}
+
+.gm-app-root.gm-dark .bg-slate-900,
+.gm-app-root.gm-dark .bg-slate-950,
+.gm-app-root.gm-dark .bg-gray-900 {
+  background-color: #111a2a;
+}
+
+.gm-app-root.gm-light .bg-slate-900,
+.gm-app-root.gm-light .bg-slate-950,
+.gm-app-root.gm-light .bg-gray-900 {
+  color: #17243b;
+  background-color: #fff;
+}
+
+.gm-app-root.gm-light .bg-white\/\[0\.02\],
+.gm-app-root.gm-light .bg-white\/\[0\.025\],
+.gm-app-root.gm-light .bg-white\/\[0\.03\],
+.gm-app-root.gm-light .bg-white\/\[0\.04\],
+.gm-app-root.gm-light .bg-white\/5 {
+  color: #17243b;
+  background-color: #fff;
+  border-color: #dfe6f0;
+  box-shadow: 0 6px 20px rgba(27, 48, 82, 0.05);
+}
+
+.gm-app-root.gm-light .border-slate-700,
+.gm-app-root.gm-light .border-slate-800,
+.gm-app-root.gm-light .border-slate-700\/50,
+.gm-app-root.gm-light .border-slate-800\/50 {
+  border-color: #dfe6f0;
+}
+
+/* =========================================================
+   DASHBOARD HERO
+========================================================= */
+
+.gm-app-root .gm-dashboard-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 28px;
+  box-shadow: 0 20px 48px rgba(32, 58, 128, 0.15);
+}
+
+.gm-app-root.gm-dark .gm-dashboard-hero {
+  color: #fff;
+  background:
+    radial-gradient(
+      circle at 90% 0%,
+      rgba(130, 145, 255, 0.22),
+      transparent 35%
+    ),
+    linear-gradient(125deg, #142b54 0%, #263c7c 52%, #413477 100%);
+  border: 1px solid rgba(130, 157, 255, 0.22);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+}
+
+.gm-app-root.gm-light .gm-dashboard-hero {
+  color: #fff;
+  background:
+    radial-gradient(
+      circle at 90% 0%,
+      rgba(255, 255, 255, 0.2),
+      transparent 34%
+    ),
+    linear-gradient(125deg, #2459bc 0%, #405bd0 52%, #6252c7 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 18px 38px rgba(54, 78, 174, 0.19);
+}
+
+.gm-app-root .gm-dashboard-hero h1,
+.gm-app-root .gm-dashboard-hero h2,
+.gm-app-root .gm-dashboard-hero h3,
+.gm-app-root .gm-dashboard-hero .text-white {
+  color: #fff;
+}
+
+.gm-app-root .gm-dashboard-hero p {
+  color: #e5edff;
+  line-height: 1.75;
+}
+
+.gm-app-root .gm-dashboard-hero button {
+  font-weight: 700;
+  border-radius: 12px;
+  transition:
+    transform var(--gm-transition),
+    box-shadow var(--gm-transition),
+    background-color var(--gm-transition);
+}
+
+.gm-app-root .gm-dashboard-hero button:hover {
+  transform: translateY(-1px);
+}
+
+/* Hero decorative background */
+
+.gm-app-root .gm-hero-orb {
+  z-index: 0;
+  pointer-events: none;
+  border-radius: 9999px;
+  filter: blur(60px);
+}
+
+.gm-app-root.gm-dark .gm-hero-orb-one {
+  background: rgba(129, 140, 248, 0.22);
+}
+
+.gm-app-root.gm-dark .gm-hero-orb-two {
+  background: rgba(56, 189, 248, 0.12);
+}
+
+.gm-app-root.gm-light .gm-hero-orb-one {
+  background: rgba(191, 219, 254, 0.3);
+}
+
+.gm-app-root.gm-light .gm-hero-orb-two {
+  background: rgba(196, 181, 253, 0.2);
+}
+
+.gm-app-root .gm-hero-grid {
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.13;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.12) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(to bottom right, black, transparent 75%);
+  -webkit-mask-image: linear-gradient(to bottom right, black, transparent 75%);
+}
+
+.gm-app-root .gm-hero-kicker {
+  color: #edf3ff;
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.gm-app-root .gm-status-pulse {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: #86efac;
+  box-shadow: 0 0 0 4px rgba(134, 239, 172, 0.13);
+}
+
+.gm-app-root .gm-hero-greeting {
+  color: #dbeafe;
+}
+
+.gm-app-root .gm-hero-title {
+  color: #fff;
+  letter-spacing: -0.045em;
+}
+
+.gm-app-root .gm-hero-gradient {
+  color: #c7d2fe;
+  background: linear-gradient(90deg, #fff 0%, #dbeafe 40%, #c4b5fd 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gm-app-root .gm-hero-description {
+  color: #e0eaff;
+}
+
+.gm-app-root .gm-hero-primary {
+  color: #1d3470;
+  background: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 8px 20px rgba(8, 20, 60, 0.12);
+}
+
+.gm-app-root .gm-hero-primary:hover {
+  color: #142b54;
+  background: #edf4ff;
+  box-shadow: 0 12px 25px rgba(8, 20, 60, 0.18);
+}
+
+.gm-app-root .gm-hero-secondary {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.gm-app-root .gm-hero-secondary:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.gm-app-root .gm-hero-footer {
+  color: #dce7ff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.gm-app-root .gm-mini-check {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #d1fae5;
+  background: rgba(16, 185, 129, 0.2);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* =========================================================
+   DASHBOARD — SUMMARY PANEL
+========================================================= */
+
+.gm-app-root .gm-hero-side {
+  min-width: 0;
+}
+
+.gm-app-root .gm-hero-side-glow {
+  z-index: 0;
+  background: rgba(167, 139, 250, 0.22);
+  filter: blur(40px);
+}
+
+.gm-app-root .gm-hero-summary {
+  position: relative;
+  z-index: 1;
+  color: #f8faff;
+  background: rgba(9, 20, 49, 0.4);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 18px 40px rgba(8, 18, 50, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Semua teks ringkasan menggunakan warna terang,
+   karena panel ini berada di atas hero berwarna. */
+
+.gm-app-root .gm-hero-summary h3,
+.gm-app-root .gm-hero-summary p,
+.gm-app-root .gm-hero-summary span,
+.gm-app-root .gm-hero-summary .gm-muted {
+  color: #edf3ff;
+}
+
+.gm-app-root .gm-card-eyebrow {
+  margin: 0;
+  color: #7f9ac2;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  line-height: 1.5;
+}
+
+.gm-app-root .gm-hero-summary .gm-card-eyebrow {
+  color: #c6d5ff;
+}
+
+.gm-app-root .gm-summary-icon {
+  color: #e0e7ff;
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.gm-app-root .gm-summary-total {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.gm-app-root .gm-summary-total p {
+  color: #e4ebff;
+}
+
+.gm-app-root .gm-summary-total p.text-3xl {
+  color: #fff;
+  font-size: 34px;
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+}
+
+.gm-app-root .gm-summary-today {
+  color: #d1fae5;
+  background: rgba(16, 185, 129, 0.17);
+  border: 1px solid rgba(110, 231, 183, 0.24);
+  letter-spacing: 0.08em;
+}
+
+.gm-app-root .gm-mini-summary {
+  min-width: 0;
+  color: #f8faff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  opacity: 1;
+  filter: none;
+  -webkit-filter: none;
+  transition:
+    background-color var(--gm-transition),
+    border-color var(--gm-transition),
+    transform var(--gm-transition);
+}
+
+.gm-app-root .gm-mini-summary:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: translateX(2px);
+}
+
+.gm-app-root .gm-mini-summary-icon {
+  color: #e0e7ff;
+  background: rgba(255, 255, 255, 0.1);
+  opacity: 1;
+}
+
+.gm-app-root .gm-mini-summary-label {
+  min-width: 0;
+  color: #f8faff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  opacity: 1;
+  text-shadow: none;
+}
+
+.gm-app-root .gm-mini-summary-value {
+  flex-shrink: 0;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+  opacity: 1;
+  text-shadow: none;
+}
+
+.gm-app-root .gm-mini-blue .gm-mini-summary-icon {
+  color: #1d4ed8;
+  background: #dbeafe;
+  border: 1px solid #bfdbfe;
+  opacity: 1;
+}
+
+.gm-app-root .gm-mini-violet .gm-mini-summary-icon {
+  color: #6d28d9;
+  background: #ede9fe;
+  border: 1px solid #ddd6fe;
+  opacity: 1;
+}
+
+.gm-app-root .gm-mini-amber .gm-mini-summary-icon {
+  color: #a16207;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  opacity: 1;
+}
+
+.gm-app-root .gm-summary-link {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.2);
+  opacity: 1;
+}
+
+.gm-app-root .gm-summary-link:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.36);
+}
+
+.gm-app-root .gm-floating-chip {
+  color: #f8faff;
+  background: rgba(9, 20, 49, 0.46);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 10px 24px rgba(8, 18, 50, 0.14);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.gm-app-root .gm-floating-chip p {
+  color: #f8faff;
+}
+
+.gm-app-root .gm-floating-chip .gm-muted {
+  color: #d4def7;
+}
+
+.gm-app-root .gm-floating-chip-icon {
+  color: #d1fae5;
+  background: rgba(16, 185, 129, 0.17);
+}
+
+/* =========================================================
+   DASHBOARD — STATISTIC CARDS
+========================================================= */
+
+.gm-app-root .gm-stats-grid {
+  align-items: stretch;
+}
+
+.gm-app-root .gm-stat-card {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--gm-panel);
+  border-color: var(--gm-border);
+  box-shadow: var(--gm-shadow);
+  transition:
+    transform var(--gm-transition),
+    border-color var(--gm-transition),
+    box-shadow var(--gm-transition);
+}
+
+.gm-app-root .gm-stat-card::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  content: "";
+  opacity: 0.95;
+}
+
+.gm-app-root .gm-stat-card:hover {
+  transform: translateY(-3px);
+}
+
+.gm-app-root.gm-light .gm-stat-card:hover {
+  box-shadow: 0 16px 34px rgba(37, 75, 143, 0.1);
+}
+
+.gm-app-root.gm-dark .gm-stat-card:hover {
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.2);
+}
+
+.gm-app-root .gm-stat-blue::before {
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+}
+
+.gm-app-root .gm-stat-violet::before {
+  background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+}
+
+.gm-app-root .gm-stat-amber::before {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+.gm-app-root .gm-stat-green::before {
+  background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.gm-app-root .gm-stat-icon {
+  border: 1px solid transparent;
+}
+
+.gm-app-root .gm-stat-blue .gm-stat-icon {
+  color: #2563eb;
+  background: #eaf2ff;
+  border-color: #d5e5ff;
+}
+
+.gm-app-root .gm-stat-violet .gm-stat-icon {
+  color: #7045d6;
+  background: #f1ebff;
+  border-color: #e4d8ff;
+}
+
+.gm-app-root .gm-stat-amber .gm-stat-icon {
+  color: #a16207;
+  background: #fff5dc;
+  border-color: #fde6a7;
+}
+
+.gm-app-root .gm-stat-green .gm-stat-icon {
+  color: #047857;
+  background: #e1f8ed;
+  border-color: #b9efd5;
+}
+
+.gm-app-root.gm-dark .gm-stat-blue .gm-stat-icon {
+  color: #bfdbfe;
+  background: rgba(59, 130, 246, 0.16);
+  border-color: rgba(96, 165, 250, 0.2);
+}
+
+.gm-app-root.gm-dark .gm-stat-violet .gm-stat-icon {
+  color: #ddd6fe;
+  background: rgba(139, 92, 246, 0.16);
+  border-color: rgba(167, 139, 250, 0.2);
+}
+
+.gm-app-root.gm-dark .gm-stat-amber .gm-stat-icon {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(251, 191, 36, 0.2);
+}
+
+.gm-app-root.gm-dark .gm-stat-green .gm-stat-icon {
+  color: #a7f3d0;
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(52, 211, 153, 0.2);
+}
+
+.gm-app-root .gm-stat-decoration {
+  color: #a4b1c7;
+  opacity: 0.55;
+}
+
+.gm-app-root .gm-stat-value {
+  color: var(--gm-text);
+  font-size: clamp(26px, 2.4vw, 34px);
+  line-height: 1.1;
+  letter-spacing: -0.045em;
+}
+
+.gm-app-root .gm-stat-label {
+  color: var(--gm-text);
+  line-height: 1.5;
+}
+
+.gm-app-root .gm-stat-line {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--gm-panel-hover);
+}
+
+.gm-app-root .gm-stat-line span {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 350ms ease;
+}
+
+.gm-app-root .gm-stat-card:hover .gm-stat-line span {
+  width: 70%;
+}
+
+.gm-app-root .gm-stat-blue .gm-stat-line span {
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+}
+
+.gm-app-root .gm-stat-violet .gm-stat-line span {
+  background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+}
+
+.gm-app-root .gm-stat-amber .gm-stat-line span {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+.gm-app-root .gm-stat-green .gm-stat-line span {
+  background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+/* =========================================================
+   DASHBOARD — UPCOMING SCHEDULES
+========================================================= */
+
+.gm-app-root .gm-heading {
+  color: var(--gm-text);
+}
+
+.gm-app-root .gm-muted {
+  color: var(--gm-text-muted);
+}
+
+.gm-app-root .gm-upcoming-card {
+  min-width: 0;
+  background: var(--gm-panel);
+  border-color: var(--gm-border);
+  transition:
+    transform var(--gm-transition),
+    box-shadow var(--gm-transition),
+    border-color var(--gm-transition);
+}
+
+.gm-app-root .gm-upcoming-card:hover {
+  transform: translateY(-2px);
+  border-color: #8fb5ff;
+  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.07);
+}
+
+.gm-app-root .gm-upcoming-number {
+  color: #2563eb;
+  background: #eaf2ff;
+  border: 1px solid #d5e5ff;
+}
+
+.gm-app-root.gm-dark .gm-upcoming-number {
+  color: #bfdbfe;
+  background: rgba(59, 130, 246, 0.16);
+  border-color: rgba(96, 165, 250, 0.2);
+}
+
+.gm-app-root .gm-upcoming-date {
+  color: #46566e;
+  background: #f1f5fb;
+  border: 1px solid #e0e7f1;
+}
+
+.gm-app-root.gm-dark .gm-upcoming-date {
+  color: #dbeafe;
+  background: #1a2940;
+  border-color: #354761;
+}
+
+.gm-app-root .gm-upcoming-meta span {
+  color: #526078;
+  background: #f4f7fc;
+  border: 1px solid #e3eaf4;
+}
+
+.gm-app-root.gm-dark .gm-upcoming-meta span {
+  color: #d5dfef;
+  background: #172237;
+  border-color: #2f4058;
+}
+
+.gm-app-root .gm-attendance-link {
+  color: #2556b8;
+  background: #f8fbff;
+  border-color: #d8e5f8;
+}
+
+.gm-app-root .gm-attendance-link:hover {
+  color: #1d4ed8;
+  background: #edf4ff;
+  border-color: #b9d0ff;
+}
+
+.gm-app-root.gm-dark .gm-attendance-link {
+  color: #bfdbfe;
+  background: #16243a;
+  border-color: #344966;
+}
+
+.gm-app-root.gm-dark .gm-attendance-link:hover {
+  color: #fff;
+  background: #1d3151;
+  border-color: #4b6b9b;
+}
+
+/* =========================================================
+   DASHBOARD — AGENDA ROWS
+========================================================= */
+
+.gm-app-root .gm-agenda-count {
+  color: #2459bc;
+  background: #edf4ff;
+  border-color: #d5e5ff;
+}
+
+.gm-app-root.gm-dark .gm-agenda-count {
+  color: #bfdbfe;
+  background: rgba(59, 130, 246, 0.13);
+  border-color: rgba(96, 165, 250, 0.22);
+}
+
+.gm-app-root .gm-agenda-row {
+  min-width: 0;
+  background: var(--gm-panel);
+  border-color: var(--gm-border);
+  transition:
+    background-color var(--gm-transition),
+    border-color var(--gm-transition),
+    box-shadow var(--gm-transition);
+}
+
+.gm-app-root .gm-agenda-row:hover {
+  border-color: #a8c6fb;
+}
+
+.gm-app-root.gm-light .gm-agenda-row:hover {
+  background: #fbfdff;
+  box-shadow: 0 5px 16px rgba(37, 99, 235, 0.05);
+}
+
+.gm-app-root.gm-dark .gm-agenda-row:hover {
+  background: #141f32;
+}
+
+.gm-app-root .gm-agenda-time {
+  flex-shrink: 0;
+  color: #2556b8;
+  background: #edf4ff;
+  border: 1px solid #d6e5ff;
+}
+
+.gm-app-root .gm-agenda-time p {
+  color: inherit;
+}
+
+.gm-app-root.gm-dark .gm-agenda-time {
+  color: #bfdbfe;
+  background: #182943;
+  border-color: #344966;
+}
+
+.gm-app-root .gm-agenda-type {
+  color: #46566e;
+  background: #f1f5fb;
+  border: 1px solid #e1e8f3;
+}
+
+.gm-app-root.gm-dark .gm-agenda-type {
+  color: #d4deef;
+  background: #1a2940;
+  border-color: #34445b;
+}
+
+.gm-app-root .gm-agenda-check {
+  flex-shrink: 0;
+  color: #047857;
+  background: #e1f8ed;
+  border: 1px solid #b9efd5;
+}
+
+.gm-app-root.gm-dark .gm-agenda-check {
+  color: #a7f3d0;
+  background: rgba(16, 185, 129, 0.13);
+  border-color: rgba(52, 211, 153, 0.2);
+}
+
+/* =========================================================
+   GENERIC SCHEDULE / REMINDER COMPONENTS
+========================================================= */
+
+.gm-app-root .gm-schedule-card,
+.gm-app-root .gm-reminder-row {
+  min-width: 0;
+  color: var(--gm-text);
+  background: var(--gm-panel);
+  border-color: var(--gm-border);
+  transition:
+    border-color var(--gm-transition),
+    box-shadow var(--gm-transition),
+    background-color var(--gm-transition);
+}
+
+.gm-app-root .gm-schedule-card:hover,
+.gm-app-root .gm-reminder-row:hover {
+  border-color: #a8c6fb;
+}
+
+.gm-app-root .gm-schedule-time {
+  color: #2556b8;
+  background: #edf4ff;
+  border: 1px solid #d6e5ff;
+}
+
+.gm-app-root.gm-dark .gm-schedule-time {
+  color: #bfdbfe;
+  background: #182943;
+  border-color: #344966;
+}
+
+.gm-app-root .gm-reminder-icon {
+  color: #2563eb;
+  background: #eaf2ff;
+  border: 1px solid #d5e5ff;
+}
+
+.gm-app-root.gm-dark .gm-reminder-icon {
+  color: #bfdbfe;
+  background: rgba(59, 130, 246, 0.16);
+  border-color: rgba(96, 165, 250, 0.2);
+}
+
+.gm-app-root .gm-reminder-row.is-completed {
+  opacity: 0.72;
+}
+
+.gm-app-root .gm-reminder-row.is-completed .gm-reminder-icon {
+  color: #047857;
+  background: #e1f8ed;
+  border-color: #b9efd5;
+}
+
+/* =========================================================
+   BUTTONS
+========================================================= */
+
+.gm-app-root button {
+  transition:
+    background-color var(--gm-transition),
+    border-color var(--gm-transition),
+    color var(--gm-transition),
+    box-shadow var(--gm-transition),
+    transform var(--gm-transition);
+}
+
+.gm-app-root button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.gm-app-root button.bg-blue-500,
+.gm-app-root button.bg-blue-600,
+.gm-app-root button.bg-indigo-500,
+.gm-app-root button.bg-indigo-600,
+.gm-app-root button[class*="from-blue-"],
+.gm-app-root button[class*="from-indigo-"] {
+  color: #fff;
+  font-weight: 650;
+}
+
+.gm-app-root button.bg-blue-500:hover,
+.gm-app-root button.bg-blue-600:hover,
+.gm-app-root button.bg-indigo-500:hover,
+.gm-app-root button.bg-indigo-600:hover {
+  filter: brightness(1.07);
+}
+
+.gm-app-root.gm-dark button.border-slate-700,
+.gm-app-root.gm-dark button.border-slate-800 {
+  color: #e0e9f8;
+  border-color: #3a4960;
+}
+
+.gm-app-root.gm-light button.border-slate-700,
+.gm-app-root.gm-light button.border-slate-800 {
+  color: #344258;
+  background-color: #fff;
+  border-color: #cfd9e8;
+}
+
+.gm-app-root.gm-light button.border-slate-700:hover,
+.gm-app-root.gm-light button.border-slate-800:hover {
+  color: #1d4ed8;
+  background: #eff5ff;
+  border-color: #b9d0ff;
+}
+
+.gm-app-root.gm-light main button[class*="bg-blue-"],
+.gm-app-root.gm-light main button[class*="bg-indigo-"] {
+  box-shadow: 0 4px 12px rgba(43, 93, 202, 0.12);
+}
+
+.gm-app-root.gm-light main button[class*="bg-blue-"]:hover,
+.gm-app-root.gm-light main button[class*="bg-indigo-"]:hover {
+  box-shadow: 0 7px 17px rgba(43, 93, 202, 0.19);
+}
+
+/* Theme toggle dan logout */
+
+.gm-theme-toggle,
+.gm-logout-button {
+  cursor: pointer;
+  border: 1px solid var(--gm-border);
+  border-radius: 11px;
+  transition:
+    background-color var(--gm-transition),
+    border-color var(--gm-transition),
+    color var(--gm-transition);
+}
+
+.gm-app-root.gm-dark .gm-theme-toggle,
+.gm-app-root.gm-dark .gm-logout-button {
+  color: #e0e9f8;
+  background: #151f30;
+  border-color: #35445b;
+}
+
+.gm-app-root.gm-light .gm-theme-toggle,
+.gm-app-root.gm-light .gm-logout-button {
+  color: #344258;
+  background: #fff;
+  border-color: #d4deeb;
+}
+
+.gm-app-root.gm-light .gm-theme-toggle:hover,
+.gm-app-root.gm-light .gm-logout-button:hover {
+  color: #1d4ed8;
+  background: #edf4ff;
+  border-color: #b9d0ff;
+}
+
+/* =========================================================
+   INPUTS, SELECTS, TEXTAREAS
+========================================================= */
+
+.gm-app-root input,
+.gm-app-root select,
+.gm-app-root textarea {
+  max-width: 100%;
+  min-width: 0;
+  border: 1px solid var(--gm-border);
+  border-radius: 12px;
+  transition:
+    border-color var(--gm-transition),
+    box-shadow var(--gm-transition);
+}
+
+.gm-app-root.gm-dark input,
+.gm-app-root.gm-dark select,
+.gm-app-root.gm-dark textarea {
+  color: #edf3ff;
+  background-color: #111a2a;
+  border-color: #39485f;
+}
+
+.gm-app-root.gm-dark input::placeholder,
+.gm-app-root.gm-dark textarea::placeholder {
+  color: #a1b0c5;
+  opacity: 1;
+}
+
+.gm-app-root.gm-light input,
+.gm-app-root.gm-light select,
+.gm-app-root.gm-light textarea {
+  color: #17243b;
+  background-color: #fff;
+  border-color: #cbd7e8;
+  box-shadow: 0 1px 2px rgba(20, 40, 75, 0.025);
+}
+
+.gm-app-root.gm-light input::placeholder,
+.gm-app-root.gm-light textarea::placeholder {
+  color: #74839a;
+  opacity: 1;
+}
+
+.gm-app-root input:focus,
+.gm-app-root select:focus,
+.gm-app-root textarea:focus {
+  border-color: #4f8cff;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.15);
+}
+
+.gm-app-root.gm-dark select option {
+  color: #edf3ff;
+  background-color: #111a2a;
+}
+
+.gm-app-root.gm-light select option {
+  color: #17243b;
+  background-color: #fff;
+}
+
+.gm-app-root label {
+  line-height: 1.5;
+}
+
+/* Form yang kebetulan berada di dalam hero */
+
+.gm-app-root .gm-dashboard-hero input,
+.gm-app-root .gm-dashboard-hero select,
+.gm-app-root .gm-dashboard-hero textarea {
+  color: #17243b;
+  background-color: #fff;
+  border-color: #d6e1f2;
+}
+
+.gm-app-root .gm-dashboard-hero input::placeholder,
+.gm-app-root .gm-dashboard-hero textarea::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
+
+/* =========================================================
+   TABLES
+========================================================= */
+
+.gm-app-root table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+}
+
+.gm-app-root table th,
+.gm-app-root table td {
+  padding: 12px 14px;
+  vertical-align: middle;
+}
+
+.gm-app-root table th {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.035em;
+}
+
+.gm-app-root.gm-dark table th {
+  color: #c4d1e4;
+  background: #172237;
+}
+
+.gm-app-root.gm-light table th {
+  color: #526078;
+  background: #f3f6fb;
+}
+
+.gm-app-root.gm-dark table td {
+  color: #dce5f2;
+  border-color: #2a374c;
+}
+
+.gm-app-root.gm-light table td {
+  color: #344258;
+  border-color: #e3e9f2;
+}
+
+.gm-app-root.gm-dark tbody tr:hover {
+  background-color: rgba(79, 140, 255, 0.055);
+}
+
+.gm-app-root.gm-light tbody tr:hover {
+  background-color: #f4f8ff;
+}
+
+.gm-app-root .overflow-x-auto {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* =========================================================
+   GENERIC AGENDA AND DATE LABELS
+========================================================= */
+
+.gm-app-root .space-y-3 > div {
+  min-width: 0;
+}
+
+.gm-app-root .space-y-3 > div.rounded-xl {
+  transition:
+    border-color var(--gm-transition),
+    box-shadow var(--gm-transition);
+}
+
+.gm-app-root.gm-light .space-y-3 > div.rounded-xl {
+  background-color: #fff;
+  border-color: #e0e7f1;
+}
+
+.gm-app-root.gm-light .space-y-3 > div.rounded-xl:hover {
+  border-color: #bfd4ff;
+  box-shadow: 0 5px 16px rgba(37, 99, 235, 0.06);
+}
+
+/* Selector diperbaiki agar tidak memicu warning CSS optimizer. */
+.gm-app-root .min-w-\[76px\] {
+  flex-shrink: 0;
+}
+
+/* =========================================================
+   AUTH LOADING AND ERROR
+========================================================= */
+
+.gm-auth-loading {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  color: #e1e9f6;
+  background: #0a0f1b;
+  text-align: center;
+}
+
+.gm-auth-spinner {
+  width: 38px;
+  height: 38px;
+  border: 3px solid rgba(148, 163, 184, 0.24);
+  border-top-color: #60a5fa;
+  border-right-color: #8b7cff;
+  border-radius: 50%;
+  animation: gm-spin 0.8s linear infinite;
+}
+
+.gm-auth-config-error {
+  position: relative;
+  z-index: 100;
+  width: min(720px, calc(100% - 32px));
+  margin: 16px auto;
+  padding: 14px 16px;
+  border: 1px solid #7f1d1d;
+  border-radius: 12px;
+  color: #fecaca;
+  background: #450a0a;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.gm-app-root.gm-light .gm-auth-config-error {
+  color: #991b1b;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+/* =========================================================
+   SCROLLBARS
+========================================================= */
+
+.gm-app-root * {
+  scrollbar-width: thin;
+  scrollbar-color: #64748b transparent;
+}
+
+.gm-app-root.gm-light * {
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.gm-app-root *::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.gm-app-root *::-webkit-scrollbar-thumb {
+  background: #64748b;
+  border-radius: 20px;
+}
+
+.gm-app-root.gm-light *::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+/* =========================================================
+   RESPONSIVE — TABLET
+========================================================= */
 
 @media (max-width: 1023px) {
-  .gurumate-calendar-day {
-    min-height: 62px;
+  .gm-app-root header {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .gm-app-root main,
+  .gm-app-root section {
+    min-width: 0;
+  }
+
+  .gm-app-root .gm-dashboard-hero {
+    border-radius: 24px;
   }
 }
 
+/* =========================================================
+   RESPONSIVE — MOBILE
+========================================================= */
+
 @media (max-width: 640px) {
-  .gurumate-calendar-day {
-    min-height: 54px;
+  html,
+  body {
+    min-width: 320px;
+    overflow-x: hidden;
   }
 
-  .gurumate-card {
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+  .gm-app-root {
+    min-width: 320px;
+    overflow-x: clip;
+  }
+
+  .gm-app-root header {
+    gap: 8px;
+    padding: 11px 12px;
+  }
+
+  .gm-app-root main > div {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .gm-app-root h1 {
+    font-size: 1.4rem;
+    overflow-wrap: anywhere;
+  }
+
+  .gm-app-root h2 {
+    font-size: 1.15rem;
+    overflow-wrap: anywhere;
+  }
+
+  .gm-app-root .gm-dashboard-hero {
+    padding: 18px;
+    border-radius: 18px;
+    overflow-wrap: anywhere;
+  }
+
+  .gm-app-root .gm-dashboard-hero h1 {
+    font-size: 25px;
+    line-height: 1.2;
+  }
+
+  .gm-app-root .gm-dashboard-hero h2 {
+    font-size: 20px;
+    line-height: 1.3;
+  }
+
+  .gm-app-root .gm-dashboard-hero p {
+    line-height: 1.75;
+  }
+
+  .gm-app-root .gm-dashboard-hero button {
+    min-height: 42px;
+  }
+
+  .gm-app-root .gm-hero-kicker {
+    max-width: 100%;
+    font-size: 9px;
+    letter-spacing: 0.11em;
+  }
+
+  .gm-app-root .gm-hero-title {
+    font-size: 27px;
+  }
+
+  .gm-app-root .gm-hero-summary {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .gm-app-root .gm-mini-summary {
+    gap: 9px;
+    padding: 10px;
+  }
+
+  .gm-app-root .gm-mini-summary-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .gm-app-root .gm-mini-summary-label {
+    font-size: 11px;
+  }
+
+  .gm-app-root .gm-mini-summary-value {
+    font-size: 18px;
+  }
+
+  .gm-app-root .gm-floating-chip {
+    max-width: 100%;
+  }
+
+  .gm-app-root .gm-stats-grid {
+    gap: 10px;
+  }
+
+  .gm-app-root .gm-stat-card {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .gm-app-root .gm-stat-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+  }
+
+  .gm-app-root .gm-stat-value {
+    margin-top: 14px;
+    font-size: 27px;
+  }
+
+  .gm-app-root .gm-stat-label {
+    font-size: 12px;
+  }
+
+  .gm-app-root .gm-stat-decoration {
+    font-size: 16px;
+  }
+
+  .gm-app-root .gm-upcoming-card {
+    padding: 14px;
+  }
+
+  .gm-app-root .gm-agenda-row {
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .gm-app-root .gm-agenda-time {
+    min-width: 68px;
+    padding: 8px 6px;
+  }
+
+  .gm-app-root .gm-theme-toggle,
+  .gm-app-root .gm-logout-button {
+    min-height: 38px;
+    padding-right: 9px;
+    padding-left: 9px;
+    font-size: 12px;
+  }
+
+  .gm-app-root input,
+  .gm-app-root select,
+  .gm-app-root textarea {
+    max-width: 100%;
+    font-size: 16px;
+  }
+
+  .gm-app-root table th,
+  .gm-app-root table td {
+    padding: 10px;
+  }
+
+  .gm-app-root .overflow-x-auto table {
+    min-width: 540px;
+  }
+
+  .gm-app-root main,
+  .gm-app-root main > div,
+  .gm-app-root section {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+/* =========================================================
+   RESPONSIVE — SMALL MOBILE
+========================================================= */
+
+@media (max-width: 380px) {
+  .gm-app-root header {
+    padding-right: 9px;
+    padding-left: 9px;
+  }
+
+  .gm-app-root main > div {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .gm-app-root .gm-dashboard-hero {
+    padding: 15px;
+  }
+
+  .gm-app-root .gm-hero-title {
+    font-size: 24px;
+  }
+
+  .gm-app-root .gm-stat-card {
+    padding: 11px;
+  }
+
+  .gm-app-root .gm-stat-value {
+    font-size: 24px;
+  }
+
+  .gm-app-root .gm-mini-summary-label {
+    font-size: 10px;
+  }
+
+  .gm-app-root .gm-mini-summary-value {
+    font-size: 17px;
+  }
+
+  .gm-app-root .gm-agenda-time {
+    min-width: 60px;
+  }
+}
+
+/* =========================================================
+   ACCESSIBILITY
+========================================================= */
+
+@keyframes gm-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
@@ -194,4 +1766,93 @@ select:focus-visible {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* =========================================================
+   FIX FINAL — TEKS RINGKASAN DASHBOARD TETAP TAJAM
+========================================================= */
+
+/* Jangan membuat panel ringkasan dan teksnya transparan atau buram. */
+.gm-app-root .gm-hero-summary {
+  opacity: 1 !important;
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Kartu jadwal, pengingat, dan ujian. */
+.gm-app-root .gm-hero-summary .gm-mini-summary {
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  opacity: 1 !important;
+  filter: none !important;
+  -webkit-filter: none !important;
+}
+
+/* Label pada kartu ringkasan. */
+.gm-app-root .gm-hero-summary .gm-mini-summary-label {
+  color: #f8faff !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+/* Angka jumlah agenda. */
+.gm-app-root .gm-hero-summary .gm-mini-summary-value {
+  color: #fff !important;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+/* Ikon jadwal mengajar. */
+.gm-app-root .gm-hero-summary .gm-mini-blue .gm-mini-summary-icon {
+  color: #1d4ed8 !important;
+  background: #dbeafe !important;
+  border: 1px solid #bfdbfe !important;
+  opacity: 1 !important;
+}
+
+/* Ikon pengingat aktif. */
+.gm-app-root .gm-hero-summary .gm-mini-violet .gm-mini-summary-icon {
+  color: #6d28d9 !important;
+  background: #ede9fe !important;
+  border: 1px solid #ddd6fe !important;
+  opacity: 1 !important;
+}
+
+/* Ikon ujian. */
+.gm-app-root .gm-hero-summary .gm-mini-amber .gm-mini-summary-icon {
+  color: #a16207 !important;
+  background: #fef3c7 !important;
+  border: 1px solid #fde68a !important;
+  opacity: 1 !important;
+}
+
+/* Efek hover kartu ringkasan. */
+.gm-app-root .gm-hero-summary .gm-mini-summary:hover {
+  background: rgba(255, 255, 255, 0.18) !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+}
+
+/* Tombol kalender tetap terbaca. */
+.gm-app-root .gm-hero-summary .gm-summary-link {
+  color: #fff !important;
+  opacity: 1 !important;
+}
+
+.gm-app-root .gm-hero-summary .gm-summary-link:hover {
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.16) !important;
+}
+
+/* Hindari efek teks buram pada kartu mini. */
+.gm-app-root .gm-mini-summary,
+.gm-app-root .gm-mini-summary * {
+  text-shadow: none;
+  -webkit-font-smoothing: antialiased;
 }

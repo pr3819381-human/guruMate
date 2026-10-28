@@ -1,20 +1,17 @@
-
 @import "tailwindcss";
 
 :root {
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
-
-  color: #e8edf7;
-  background: #080b12;
+  color: #0f172a;
+  background: #f4f7fb;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
   font-optical-sizing: auto;
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 * {
@@ -24,10 +21,10 @@
 html {
   min-width: 320px;
   min-height: 100%;
-  background: #080b12;
+  background: #f4f7fb;
   scroll-behavior: smooth;
   scrollbar-width: thin;
-  scrollbar-color: #30394b #080b12;
+  scrollbar-color: #cbd5e1 transparent;
 }
 
 body {
@@ -36,27 +33,21 @@ body {
   min-height: 100vh;
   background:
     radial-gradient(
-      circle at 15% 0%,
+      circle at 8% 0%,
       rgba(59, 130, 246, 0.1),
-      transparent 28%
+      transparent 26%
     ),
     radial-gradient(
-      circle at 85% 10%,
-      rgba(124, 58, 237, 0.08),
-      transparent 25%
+      circle at 92% 8%,
+      rgba(99, 102, 241, 0.08),
+      transparent 24%
     ),
-    #080b12;
+    linear-gradient(180deg, #f8fafc 0%, #f3f6fb 100%);
 }
 
 #root {
   min-height: 100vh;
   width: 100%;
-}
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
 }
 
 button,
@@ -95,7 +86,7 @@ select {
 
 input::placeholder,
 textarea::placeholder {
-  color: #64748b;
+  color: #94a3b8;
   opacity: 1;
 }
 
@@ -113,26 +104,26 @@ a {
 }
 
 ::selection {
-  color: #ffffff;
-  background: rgba(59, 130, 246, 0.4);
+  color: #0f172a;
+  background: rgba(96, 165, 250, 0.28);
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #080b12;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #30394b;
+  background: #cbd5e1;
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #94a3b8;
 }
 
 @media (max-width: 640px) {

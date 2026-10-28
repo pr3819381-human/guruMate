@@ -1,8 +1,18 @@
 
-import { getApp, getApps, initializeApp } from "firebase/app";
-import type { FirebaseOptions } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import {
+  getApps,
+  initializeApp,
+  type FirebaseApp,
+  type FirebaseOptions,
+} from "firebase/app";
+import {
+  getAuth,
+  type Auth,
+} from "firebase/auth";
+import {
+  getFirestore,
+  type Firestore,
+} from "firebase/firestore";
 
 const firebaseConfig: FirebaseOptions = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -13,27 +23,51 @@ const firebaseConfig: FirebaseOptions = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const requiredConfig = [
-  firebaseConfig.apiKey,
-  firebaseConfig.authDomain,
-  firebaseConfig.projectId,
-  firebaseConfig.appId,
+const requiredConfig: Array<keyof FirebaseOptions> = [
+  "apiKey",
+  "authDomain",
+  "projectId",
+  "appId",
 ];
 
-export const firebaseEnabled = requiredConfig.every(
-  (value) => typeof value === "string" && value.trim().length > 0,
-);
+export const firebaseEnabled = requiredConfig.every((key) => {
+  const value = firebaseConfig[key];
+  return typeof value === "string" && value.trim().length > 0;
+});
 
-export const firebaseApp = firebaseEnabled
-  ? getApps().length > 0
-    ? getApp()
-    : initializeApp(firebaseConfig)
-  : null;
+function getOrCreateApp(name: string): FirebaseApp | null {
+  if (!firebaseEnabled) {
+    return null;
+  }
 
-export const firebaseAuth = firebaseApp
+  const existingApp = getApps().find((app) => app.name === name);
+
+  if (existingApp) {
+    return existingApp;
+  }
+
+  return name === "[DEFAULT]"
+    ? initializeApp(firebaseConfig)
+    : initializeApp(firebaseConfig, name);
+}
+
+export const firebaseApp = getOrCreateApp("[DEFAULT]");
+
+export const firebaseAuth: Auth | null = firebaseApp
   ? getAuth(firebaseApp)
   : null;
 
-export const firestore = firebaseApp
+export const firestore: Firestore | null = firebaseApp
   ? getFirestore(firebaseApp)
+  : null;
+
+// Koneksi Firebase terpisah untuk area admin.
+export const adminApp = getOrCreateApp("GuruMateAdmin");
+
+export const adminAuth: Auth | null = adminApp
+  ? getAuth(adminApp)
+  : null;
+
+export const adminFirestore: Firestore | null = adminApp
+  ? getFirestore(adminApp)
   : null;
